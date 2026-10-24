@@ -4,6 +4,8 @@ Texture Workshop (formerly DDS Workshop) helps convert Microsoft Train Simulator
 
 Most users should download the Texture Workshop release ZIP, extract the whole folder, and run `TextureWorkshop.exe`. You do not need Python and you do not need to install ImageMagick when the release includes the `ImageMagick` folder.
 
+The full user guide is `Documentation\TextureWorkshop_User_Guide.pdf` in the release folder.
+
 ## Texture Workshop quick start
 
 1. Extract the release ZIP to a normal folder, such as `C:\Tools\TextureWorkshop`.
@@ -176,6 +178,12 @@ To build TextureWorkshop.exe and create the release ZIP:
    python tools\build_texture_workshop_release.py
 
 The release folder and ZIP are created in the dist folder as TextureWorkshop-<version>.
+
+The user guide source is `DocSource\TextureWorkshop_User_Guide.adoc`. To rebuild `Documentation\TextureWorkshop_User_Guide.pdf` (needs Ruby with the asciidoctor-pdf gem), run this before building the release:
+
+   python tools\build_user_guide.py
+
+When you change APP_VERSION, also update `:appversion:` in the guide. The build script warns if they differ.
 
 To regenerate the application icon:
 

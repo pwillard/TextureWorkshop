@@ -1,0 +1,87 @@
+# guide-theme.yml - Texture Workshop User Guide (Asciidoctor PDF)
+extends: default
+
+font:
+  catalog:
+    Ubuntu:
+      normal: Ubuntu-Regular.ttf
+      bold: Ubuntu-Bold.ttf
+      italic: Ubuntu-Italic.ttf
+      bold_italic: Ubuntu-BoldItalic.ttf
+    # Noto Serif supports Latin, Latin-1 Supplement, Latin Extended-A, Greek, Cyrillic, Vietnamese & an assortment of symbols
+    Noto Serif:
+      normal: notoserif-regular-subset.ttf
+      bold: notoserif-bold-subset.ttf
+      italic: notoserif-italic-subset.ttf
+      bold_italic: notoserif-bold_italic-subset.ttf
+    # M+ 1mn supports ASCII and the circled numbers used for conums
+    M+ 1mn:
+      normal: mplus1mn-regular-ascii-conums.ttf
+      bold: mplus1mn-bold-ascii.ttf
+      italic: mplus1mn-italic-ascii.ttf
+      bold_italic: mplus1mn-bold_italic-ascii.ttf
+    # M+ 1p provides arrows for ->, <-, => and <= replacements in case these glyphs are missing from a font
+    M+ 1p Fallback:
+      normal: mplus1p-regular-fallback.ttf
+      bold: mplus1p-regular-fallback.ttf
+      italic: mplus1p-regular-fallback.ttf
+      bold_italic: mplus1p-regular-fallback.ttf
+  fallbacks:
+    - M+ 1p Fallback
+
+page:
+  size: Letter
+  layout: portrait
+  margin: [0.75in, 0.75in, 0.75in, 0.75in]
+
+base:
+  font_color: #222222
+  font_family: Noto Serif
+  font_size: 11
+  line_height: 1.4
+
+heading:
+  font_family: Ubuntu
+  font_color: #003366
+  h1_font_size: 20
+  h2_font_size: 16
+  h3_font_size: 13
+
+image:
+  align: center
+
+caption:
+  font_style: italic
+  font_color: #555555
+
+title_page:
+  align: center
+  title:
+    font_size: 26
+    font_color: #002244
+  subtitle:
+    font_size: 16
+    font_color: #555555
+  authors:
+    font_color: #666666
+  revision:
+    font_color: #888888
+
+toc:
+  indent: 15
+  font_color: #333333
+  line_height: 1.2
+
+footer:
+  height: 0.5in
+  border_color: #888888
+  recto:
+    right:
+      content: '{page-number}'
+    left:
+      content: 'Texture Workshop User Guide'
+  verso:
+    right:
+      content: 'Pete Willard — {revnumber}'
+    left:
+      content: '{revdate}'

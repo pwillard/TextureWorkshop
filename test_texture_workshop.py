@@ -212,7 +212,8 @@ class TextureWorkshopHelperTests(unittest.TestCase):
 
                 app.ask_clash_choices = clash_answer
                 app.ask_existing_policy = existing_answer
-                files, policy, notes = app.prepare_run()
+                files, policy, notes, preskipped = app.prepare_run()
+                self.assertEqual(preskipped, 1)
                 self.assertEqual([p.name for p in files], ["box.tga", "car.png", "old.png"])
                 self.assertEqual(policy, "backup")
                 self.assertEqual([o.name for o, _s in asked["clashes"]], ["box.ace"])
@@ -229,7 +230,8 @@ class TextureWorkshopHelperTests(unittest.TestCase):
                 app.ask_clash_choices = lambda clashes: {dw.output_key(clashes[0][0]): None}
                 app.ask_existing_policy = lambda existing: self.fail("should not ask")
                 app.overwrite_policy.set("overwrite")
-                files, policy, _notes = app.prepare_run()
+                files, policy, _notes, preskipped = app.prepare_run()
+                self.assertEqual(preskipped, 2)
                 self.assertEqual([p.name for p in files], ["car.png", "old.png"])
                 self.assertEqual(policy, "overwrite")
 

@@ -1,0 +1,437 @@
+= Texture Workshop User Guide
+Pete Willard
+:revnumber: 2.0
+:revdate: October 2026
+:appversion: 0.4.1
+:doctype: book
+:icons: font
+:toc: left
+:sectnums:
+:toclevels: 2
+:source-highlighter: rouge
+:pdf-theme: guide-theme.yml
+:pdf-page-size: Letter
+:pdf-page-layout: portrait
+:pdf-fontsdir: ./fonts
+:title-page-background-image: image:cover.png[fit]
+:imagesdir: ./images
+:description: User guide for Texture Workshop, which converts MSTS/Open Rails textures between ACE, PNG and DDS.
+:keywords: MSTS, Open Rails, ACE, PNG, TGA, BMP, DDS, texture conversion, Texture Workshop, DDS Workshop
+
+== Introduction
+
+Texture Workshop converts Microsoft Train Simulator (MSTS) and Open Rails textures between the file types you need when editing them.
+
+[cols="2,3",options="header"]
+|===
+| Conversion | Use it when
+| ACE to editable PNG | You want to edit an existing route or rolling-stock texture in a normal image editor.
+| ACE directly to DDS | You want Open Rails DDS textures and do not need to edit anything first.
+| PNG/TGA/BMP to DDS | You have edited or new images and want DDS textures for Open Rails.
+| PNG/TGA/BMP to ACE | You have edited or new images and want ACE textures, which both MSTS and Open Rails can use.
+|===
+
+TIP: MSTS can only use ACE textures. Open Rails can use ACE or DDS. If a texture must work in both, make it an ACE file.
+
+Texture Workshop was previously called *DDS Workshop*.
+The name changed when PNG to ACE conversion was added.
+Your DDS Workshop settings are picked up automatically the first time you start Texture Workshop.
+
+This guide describes Texture Workshop version {appversion}.
+
+== What Is Included
+
+The release ZIP contains one folder.
+Keep everything in it together.
+
+[cols="2,4",options="header"]
+|===
+| File or folder | What it is
+| `TextureWorkshop.exe` | The Texture Workshop program. This is the file you run.
+| `ace2png.exe` | Helper that turns ACE files into PNG files.
+| `png2dds.exe` | Helper that turns PNG files into DDS files.
+| `png2ace.exe` | Helper that turns PNG, TGA and BMP files into ACE files.
+| `ImageMagick\` | A portable copy of ImageMagick, used when making DDS files.
+| `Documentation\` | This user guide.
+| `README.md` | Short quick-start notes.
+| `THIRD_PARTY_LICENSES\` | License notices for ImageMagick.
+| `SHA256SUMS.txt` | Checksums you can use to confirm the download is complete.
+|===
+
+The helper programs can also be used on their own from a Command Prompt.
+See <<Command-Line Tools>>.
+
+== Installing
+
+. Download the Texture Workshop release ZIP.
+. Extract the whole ZIP to a normal folder, for example `C:\Tools\TextureWorkshop`.
++
+Do not run the program from inside the ZIP file.
+. Open the folder and double-click `TextureWorkshop.exe`.
+
+You do not need to install Python.
+You do not need to install ImageMagick, because the release includes it in the `ImageMagick` folder.
+
+IMPORTANT: Keep `TextureWorkshop.exe`, the three helper `.exe` files and the `ImageMagick` folder together in the same folder.
+If one is missing, Texture Workshop tells you which file it cannot find when you click *Run Conversion*.
+
+=== If you install ImageMagick yourself
+
+Only the DDS conversions use ImageMagick.
+If your copy of Texture Workshop does not have the `ImageMagick` folder, install ImageMagick from https://imagemagick.org/script/download.php#windows and turn on *Add application directory to your system path* during installation.
+
+Texture Workshop looks for ImageMagick in this order:
+
+. The ImageMagick path set in *File > Settings*
+. `ImageMagick\magick.exe` beside `TextureWorkshop.exe`
+. `magick.exe` beside `TextureWorkshop.exe`
+. `magick.exe` on the system PATH
+
+== The Main Window
+
+.Texture Workshop main window
+image::main_window.png[Texture Workshop main window,width=100%]
+
+The window is divided into panels from top to bottom.
+If the window is small, scroll down to see the lower panels.
+
+Run Setup::
+Choose the *Source*: one texture file (*File...*) or a whole folder (*Folder...*).
+The list underneath shows the files that will be converted in the current mode.
+Choose where the new files go: tick *Use source folder* to put them beside the originals, or untick it and pick an *Output Folder...*.
+
+Conversion Mode::
+Choose one of the four conversions.
+The file list updates to show only the files that mode can use.
+
+Batch and Existing File Options::
+*Include subfolders* converts files in folders inside the source folder too.
+*Existing outputs* controls what happens when a file you are about to create already exists.
+See <<Existing Files and Backups>>.
+The DDS settings are only available in the two DDS modes.
+
+ACE Output Options::
+The ACE format and ACE mipmap settings.
+These are only available in *PNG/TGA/BMP to ACE* mode.
+
+Status::
+*Run Conversion* starts the batch. *Abort* stops it after the file being converted now is finished.
+
+Output Log::
+Shows each file as it is converted, and a summary at the end.
+See <<Reading the Output Log>>.
+
+== Converting Textures
+
+Every conversion uses the same steps:
+
+. Choose the *Source* file or folder.
+. Choose the *Conversion Mode*.
+. Tick *Include subfolders* if you want files in subfolders converted too.
+. Choose the output location: *Use source folder*, or an *Output Folder*.
+. Check the options for the mode you picked (described below).
+. Click *Run Conversion*.
+. Answer any questions Texture Workshop asks about existing files or same-name files.
+. Read the summary at the end of the *Output Log*.
+
+When you use a separate output folder together with *Include subfolders*, the subfolder layout is copied into the output folder.
+This keeps files with the same name in different folders apart.
+
+TIP: Try a new setting on a copy of one or two textures first, then run the whole folder.
+
+=== ACE to editable PNG
+
+Makes a PNG file from each ACE file.
+Open the PNG in your image editor, make your changes, and save it as PNG again.
+Then convert it back with *PNG/TGA/BMP to DDS* or *PNG/TGA/BMP to ACE*.
+
+This mode does not use ImageMagick.
+
+=== ACE directly to DDS
+
+Makes a DDS file from each ACE file in one step.
+Texture Workshop creates a temporary PNG first and deletes it afterwards.
+
+Tick *Keep intermediate PNG files for ACE to DDS* if you also want to keep those PNG files.
+They are saved beside the DDS files.
+
+The DDS compression and DDS mipmap settings apply. See the next section.
+
+=== PNG/TGA/BMP to DDS
+
+Makes a DDS file from each PNG, TGA or BMP file.
+TGA and BMP files are converted to a temporary PNG first.
+
+DDS compression::
+* *Auto* (recommended): DXT1 for images without transparency, DXT5 for images with transparency.
+* *Force DXT1*: always DXT1. Any transparency is lost.
+* *Force DXT5*: always DXT5.
+
+DDS mipmaps::
+* *No mipmaps*: the default.
+* *Generate mipmaps*: adds smaller copies of the texture inside the DDS file, which can make distant textures look smoother.
+
+=== PNG/TGA/BMP to ACE
+
+Makes an ACE file from each PNG, TGA or BMP file.
+ACE files work in both MSTS and Open Rails.
+This mode does not use ImageMagick.
+
+[cols="2,5",options="header"]
+|===
+| ACE format | What it does
+| *Structured (safest)* | Uncompressed. Works with the widest range of programs. Files are larger. This is the default.
+| *DXT1* | Compressed, for textures without transparency.
+| *DXT3* | Compressed, for textures with transparency.
+| *DXT5* | Compressed, for textures with transparency. Usually better than DXT3 for soft edges.
+| *Auto DXT* | Picks DXT1 for images without transparency and DXT5 for images with transparency.
+|===
+
+Transparency (alpha)::
+Texture Workshop only writes a transparency channel when the image really uses transparency.
+Tiny amounts of almost-opaque transparency are treated as fully opaque, because some older MSTS ACE readers show stripes when an unneeded transparency channel is present.
+
+DXT3 and DXT5 need transparency::
+If you choose DXT3 or DXT5 for an image that has no transparency channel, that image is skipped and no ACE file is written for it.
+The log shows the reason. Any existing ACE file with that name is left untouched.
+Use *Auto DXT* if your folder has a mix of images with and without transparency.
+
+ACE mipmaps::
+*Generate mipmaps* only works for square images whose sides are a power of two, such as 256 x 256, 512 x 512 or 1024 x 1024.
+Other images fail with an error in the log and no ACE file is written for them.
+
+== Existing Files and Backups
+
+Texture Workshop never replaces an existing file unless you have chosen to allow it.
+The *Existing outputs* setting decides what happens:
+
+[cols="2,5",options="header"]
+|===
+| Setting | What happens to a file that already exists
+| *Ask before overwriting* | Texture Workshop asks you once, before converting anything. This is the default.
+| *Skip* | The existing file is kept and that source file is not converted.
+| *Overwrite* | The existing file is replaced. No backup is kept.
+| *Backup then overwrite* | A backup copy of the existing file is made, then it is replaced.
+|===
+
+With *Ask before overwriting*, Texture Workshop checks all the files in the batch before it starts.
+If any of the new files already exist, it lists them:
+
+.Existing output files question
+image::existing_dialog.png[Existing output files question,width=75%]
+
+* *Backup all, then overwrite*: back up every listed file, then replace it.
+* *Overwrite all*: replace every listed file without a backup.
+* *Skip all*: keep every listed file and do not convert the sources that would replace them.
+* *Cancel run*: stop. Nothing is converted.
+
+If none of the new files exist yet, no question is shown.
+
+Backups are kept in the same folder as the file, with the date and time and `.bak` added to the name.
+For example:
+
+[source,plaintext]
+----
+AGTANK1.ace
+AGTANK1.ace.20261024-075846.bak
+----
+
+To restore a backup, delete or rename the newer file, then remove the date and `.bak` from the backup's name.
+
+== Same-Name Source Files
+
+Two different source files can make an output file with the same name.
+For example, `ROOF.png` and `ROOF.tga` would both make `ROOF.ace`.
+Texture Workshop finds these before it starts and asks which one to use:
+
+.Same-name source files question
+image::clash_dialog_chosen.png[Same-name source files question,width=75%]
+
+For each output file, choose the source file to convert, or *Skip all of these* to convert neither.
+*Skip all of these* is selected to begin with, so nothing is chosen for you.
+Click *Continue* to go on, or *Cancel run* to stop without converting anything.
+
+Upper and lower case do not matter: `Roof.png` and `ROOF.tga` also count as the same name.
+
+== Reading the Output Log
+
+.Output log after a run
+image::main_after_run.png[Output log after a run,width=100%]
+
+The log lists each file as it is converted, including the messages from the helper programs.
+It also records the choices you made before the run, such as which same-name file was used.
+
+At the end there is a summary:
+
+Succeeded:: New files that were written.
+Skipped:: Files that were not converted on purpose. For example, the output already existed and you chose *Skip*, you did not pick a same-name source file, or DXT3/DXT5 was chosen for an image without transparency.
+Failed:: Files that could not be converted. Scroll up in the log to find the error for each one.
+
+Use *Copy Log* to copy the whole log to the clipboard, for example to paste it into a forum post when asking for help.
+*Clear Log* empties the log.
+
+== Settings
+
+Open *File > Settings...* to change:
+
+* the location of `ace2png.exe`, `png2dds.exe` and `png2ace.exe`
+* the location of ImageMagick `magick.exe`
+* the *Theme* (Light or Dark)
+
+Normally you do not need to change the program locations, because Texture Workshop finds the copies in its own folder.
+
+Texture Workshop remembers your source, output, mode and option choices between sessions.
+They are stored in `%APPDATA%\TextureWorkshop\settings.ini`.
+If that file does not exist yet but DDS Workshop settings do, the DDS Workshop settings are used.
+
+== Editing Tips
+
+* Any image editor that saves PNG files will work, for example GIMP, Paint.NET, Affinity Photo or Photoshop.
+* If the original texture had transparent areas, make sure your editor keeps the transparency when you save. A checkerboard background in the editor usually means the image has transparent areas.
+* Keep texture sizes to powers of two, such as 256, 512, 1024 or 2048 pixels on each side. This is what MSTS and Open Rails expect, and it is required for ACE mipmaps.
+* Work on copies of route and rolling-stock textures, not on the only copy you have.
+
+== Troubleshooting
+
+[cols="2,3,3",options="header"]
+|===
+| Problem | Likely cause | What to do
+
+| A message says required support files are missing
+| A helper program or the `ImageMagick` folder is not beside `TextureWorkshop.exe`
+| Extract the whole release ZIP again, or set the paths in *File > Settings*.
+
+| The file list is empty
+| The source folder has no files that the current mode can use, or the files are in subfolders
+| Check the *Conversion Mode*. Tick *Include subfolders* if the textures are in subfolders.
+
+| An image was skipped when making ACE files
+| DXT3 or DXT5 was chosen, and the image has no transparency
+| Choose *Auto DXT*, *DXT1* or *Structured* for that image.
+
+| An ACE file failed with a mipmap error
+| *Generate mipmaps* was chosen for an image that is not square and a power of two
+| Resize the image, or choose *No mipmaps*.
+
+| Transparency is missing
+| The image was saved without transparency, or *Force DXT1* was used for DDS
+| Save the image again with transparency kept. For DDS, use *Auto* or *Force DXT5*.
+
+| Nothing happened to some files
+| The output files already existed and *Skip* was chosen
+| Check the log for `SKIP` lines. Run again and choose *Backup all, then overwrite*.
+
+| Files went to the wrong folder
+| *Use source folder* or the output folder was not set as intended
+| Check the *Output* settings in *Run Setup* before you click *Run Conversion*.
+|===
+
+== Command-Line Tools
+
+The three helper programs can be used on their own from a Command Prompt.
+This is optional. Most users only need Texture Workshop.
+
+[IMPORTANT]
+If a folder name contains spaces, put quotes around the path.
+For example: `"C:\Open Rails\My Route\Textures"`
+
+The examples assume the tools are in `C:\Tools\TextureWorkshop`.
+
+=== ace2png.exe: ACE to PNG
+
+Convert one ACE file. The PNG is written beside it:
+
+[source,cmd]
+----
+C:\Tools\TextureWorkshop\ace2png.exe texture.ace
+----
+
+Convert all ACE files in a folder into another folder:
+
+[source,cmd]
+----
+C:\Tools\TextureWorkshop\ace2png.exe ace_folder -o png_folder
+----
+
+If a PNG with the same name exists, it is renamed with `.bak` added before the new file is written.
+
+=== png2dds.exe: PNG to DDS
+
+png2dds.exe needs ImageMagick on the system PATH when it is used on its own.
+
+Convert one PNG file. With no destination, the DDS file is written into a `dds` folder:
+
+[source,cmd]
+----
+C:\Tools\TextureWorkshop\png2dds.exe texture.png
+----
+
+Convert all PNG files in a folder, optionally including subfolders:
+
+[source,cmd]
+----
+C:\Tools\TextureWorkshop\png2dds.exe png_folder --destination dds_folder
+C:\Tools\TextureWorkshop\png2dds.exe png_folder --destination dds_folder --recursive
+----
+
+Choose the compression or generate mipmaps:
+
+[source,cmd]
+----
+C:\Tools\TextureWorkshop\png2dds.exe texture.png --destination texture.dds --compression dxt1
+C:\Tools\TextureWorkshop\png2dds.exe texture.png --destination texture.dds --compression dxt5
+C:\Tools\TextureWorkshop\png2dds.exe texture.png --destination texture.dds --mipmaps generate
+----
+
+`--compression` can be `auto` (the default), `dxt1` or `dxt5`.
+If a DDS file with the same name exists, it is renamed with `.bak` added before the new file is written.
+
+=== png2ace.exe: PNG, TGA or BMP to ACE
+
+Convert one image. The ACE file is written beside it:
+
+[source,cmd]
+----
+C:\Tools\TextureWorkshop\png2ace.exe texture.png
+----
+
+Convert one image to a chosen ACE file name:
+
+[source,cmd]
+----
+C:\Tools\TextureWorkshop\png2ace.exe texture.png texture.ace
+----
+
+Convert all PNG and TGA files in a folder (not subfolders) into another folder:
+
+[source,cmd]
+----
+C:\Tools\TextureWorkshop\png2ace.exe png_folder ace_folder
+----
+
+Choose the ACE format or generate mipmaps:
+
+[source,cmd]
+----
+C:\Tools\TextureWorkshop\png2ace.exe texture.png texture.ace --format dxt1
+C:\Tools\TextureWorkshop\png2ace.exe texture.png texture.ace --format auto-dxt
+C:\Tools\TextureWorkshop\png2ace.exe texture.png texture.ace --mipmaps
+----
+
+`--format` can be `structured` (the default), `dxt1`, `dxt3`, `dxt5` or `auto-dxt`.
+
+WARNING: Used on its own, png2ace.exe replaces an existing ACE file without making a backup.
+Use Texture Workshop if you want to be asked first.
+
+== Credits
+
+ImageMagick is a separate third-party program and remains subject to its own license terms. See the `THIRD_PARTY_LICENSES` folder.
+
+Referenced Open Rails ACE format documentation © Open Rails Project contributors.
+
+This guide was created using AsciiDoc and Asciidoctor PDF.
+
+[small]
+--
+Copyright © 2026 Pete Willard.
+--

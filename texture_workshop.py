@@ -19,7 +19,7 @@ import tkinter.font as tkfont
 from tkinter.scrolledtext import ScrolledText
 
 APP_NAME = "Texture Workshop"
-APP_VERSION = "0.4.0"
+APP_VERSION = "0.4.1"
 APP_SUBTITLE = "ACE / PNG / DDS TEXTURE CONVERSION"
 CONFIG_DIR = Path(os.environ.get("APPDATA", Path.home() / "AppData" / "Roaming")) / "TextureWorkshop"
 CONFIG_FILE = CONFIG_DIR / "settings.ini"
@@ -817,10 +817,10 @@ class TextureWorkshopApp:
         if prepared is None:
             self.append_log("Run cancelled before any files were converted.")
             return
-        files, policy, notes = prepared
+        files, policy, notes, preskipped = prepared
         self.abort_requested = False
         self.set_running(True)
-        self.worker = threading.Thread(target=self.run_batch, kwargs={"files": files, "policy": policy, "notes": notes}, daemon=True)
+        self.worker = threading.Thread(target=self.run_batch, kwargs={"files": files, "policy": policy, "notes": notes, "preskipped": preskipped}, daemon=True)
         self.worker.start()
 
     def batch_roots(self) -> tuple[Path, Path | None, Path | None]:
@@ -833,13 +833,14 @@ class TextureWorkshopApp:
         policy = self.run_policy or self.overwrite_policy.get()
         return "skip" if policy == "ask" else policy
 
-    def prepare_run(self) -> tuple[list[Path], str, list[str]] | None:
+    def prepare_run(self) -> tuple[list[Path], str, list[str], int] | None:
         """Resolve output clashes and existing outputs with the user. Returns None if cancelled."""
         mode = self.mode.get()
         source, source_root, output_root = self.batch_roots()
         files = collect_sources(source, mode, self.recursive.get())
         keep = mode == "ace_dds" and self.keep_intermediate.get()
         notes: list[str] = []
+        total = len(files)
 
         clashes = find_output_clashes(plan_outputs(files, mode, source_root, output_root, keep))
         if clashes:
@@ -865,7 +866,7 @@ class TextureWorkshopApp:
                 notes.append(f"Existing outputs ({len(existing)}): {dict((v, l) for l, v in OVERWRITE_POLICY_OPTIONS)[policy]} for this run")
             else:
                 policy = "skip"
-        return files, policy, notes
+        return files, policy, notes, total - len(files)
 
     def ask_clash_choices(self, clashes: list[tuple[Path, list[Path]]]) -> dict[str, Path | None] | None:
         return ClashDialog(self.root, clashes).result
@@ -877,10 +878,11 @@ class TextureWorkshopApp:
         self.abort_requested = True
         self.thread_log("Abort requested. The current file will finish first.")
 
-    def run_batch(self, files: list[Path] | None = None, policy: str | None = None, notes: list[str] | None = None) -> None:
+    def run_batch(self, files: list[Path] | None = None, policy: str | None = None, notes: list[str] | None = None, preskipped: int = 0) -> None:
         ok = 0
         failed = 0
-        skipped = 0
+        # Same-name sources the user chose not to convert count as skipped.
+        skipped = preskipped
         self.run_policy = policy
         try:
             mode = self.mode.get()
