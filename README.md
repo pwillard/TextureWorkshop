@@ -26,7 +26,12 @@ Most users should download the Texture Workshop release ZIP, extract the whole f
    - Auto DXT: DXT1 for opaque images, DXT5 for images with transparency
 8. For ACE output, choose whether to generate ACE mipmaps. Mipmaps need square, power-of-two images such as 512x512 or 1024x1024.
 9. Choose whether to use the source folder or a separate output folder.
-10. Click `Run Conversion`.
+10. Choose what to do with output files that already exist:
+   - Ask before overwriting (default): before the run starts, Texture Workshop lists the files that already exist and lets you choose Backup all, Overwrite all, Skip all, or Cancel
+   - Skip, Overwrite, or Backup then overwrite: use that choice without asking
+11. Click `Run Conversion`.
+
+If two source files would make the same output file, for example `box.png` and `box.tga` both making `box.ace`, Texture Workshop asks before the run which one to convert. You can also skip both. Nothing is converted until you choose.
 
 Keep these files and folders together:
 
@@ -151,7 +156,7 @@ png2ace.exe does not need ImageMagick.
 
 ## Notes
 
-- In Texture Workshop, existing PNG, DDS or ACE files are not simply overwritten by default. The old file is kept as a backup with .bak added to the name. When png2ace.exe is used on its own from the command line, it replaces an existing ACE file without a backup.
+- In Texture Workshop, existing PNG, DDS or ACE files are never overwritten without your choice. With Backup, the old file is kept with a date stamp and .bak added to the name. When png2ace.exe is used on its own from the command line, it replaces an existing ACE file without a backup.
 - png2dds.exe defaults to automatic DXT selection: DXT1 for images without transparency and DXT5 for images with transparency. Use `--compression dxt1` or `--compression dxt5` to force a specific DDS format.
 - png2dds.exe defaults to no mipmaps. Use `--mipmaps generate` to create DDS mipmap levels.
 - png2ace.exe writes a transparency (alpha) channel only when the image really uses transparency. Tiny amounts of near-opaque alpha are treated as opaque, because some older MSTS ACE readers show stripes when an unneeded alpha channel is present.

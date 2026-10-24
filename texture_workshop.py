@@ -19,7 +19,7 @@ import tkinter.font as tkfont
 from tkinter.scrolledtext import ScrolledText
 
 APP_NAME = "Texture Workshop"
-APP_VERSION = "0.3.0"
+APP_VERSION = "0.4.0"
 APP_SUBTITLE = "ACE / PNG / DDS TEXTURE CONVERSION"
 CONFIG_DIR = Path(os.environ.get("APPDATA", Path.home() / "AppData" / "Roaming")) / "TextureWorkshop"
 CONFIG_FILE = CONFIG_DIR / "settings.ini"
@@ -31,6 +31,8 @@ ACE_EXTS = {".ace"}
 MODES = ("ace_png", "ace_dds", "image_dds", "image_ace")
 ACE_INPUT_MODES = {"ace_png", "ace_dds"}
 DDS_OUTPUT_MODES = {"image_dds", "ace_dds"}
+MODE_OUTPUT_SUFFIX = {"ace_png": ".png", "ace_dds": ".dds", "image_dds": ".dds", "image_ace": ".ace"}
+OVERWRITE_POLICY_OPTIONS = (("Ask before overwriting", "ask"), ("Skip", "skip"), ("Overwrite", "overwrite"), ("Backup then overwrite", "backup"))
 SOURCE_COLUMNS = (("name", "File", 260), ("folder", "Folder", 360), ("type", "Type", 70), ("size", "Size", 90))
 DDS_COMPRESSION_OPTIONS = (("Auto", "auto"), ("Force DXT1", "dxt1"), ("Force DXT5", "dxt5"))
 DDS_MIPMAP_OPTIONS = (("No mipmaps", "none"), ("Generate mipmaps", "generate"))
@@ -255,6 +257,55 @@ def ensure_overwrite_policy(path: Path, policy: str) -> tuple[bool, str]:
     return False, f"SKIP unknown overwrite policy for: {path}"
 
 
+def output_key(path: Path) -> str:
+    """Comparison key for output paths (Windows file names are case-insensitive)."""
+    return os.path.normcase(str(path))
+
+
+def plan_outputs(files: list[Path], mode: str, source_root: Path | None, output_root: Path | None, keep_intermediate: bool = False) -> list[tuple[Path, list[Path]]]:
+    """Return (source, [output files it will write]) for each source in a batch."""
+    suffix = MODE_OUTPUT_SUFFIX[mode]
+    plan = []
+    for source in files:
+        out = output_path_for(source, source_root, output_root, suffix)
+        outputs = [out]
+        if mode == "ace_dds" and keep_intermediate:
+            outputs.append(out.with_suffix(".png"))
+        plan.append((source, outputs))
+    return plan
+
+
+def find_output_clashes(plan: list[tuple[Path, list[Path]]]) -> list[tuple[Path, list[Path]]]:
+    """Return (output, [sources]) for every output that more than one source would write."""
+    by_output: dict[str, tuple[Path, list[Path]]] = {}
+    for source, outputs in plan:
+        for out in outputs:
+            entry = by_output.setdefault(output_key(out), (out, []))
+            entry[1].append(source)
+    return [(out, sources) for out, sources in by_output.values() if len(sources) > 1]
+
+
+def apply_clash_choices(files: list[Path], clashes: list[tuple[Path, list[Path]]], choices: dict[str, Path | None]) -> list[Path]:
+    """Drop every clashing source except the one chosen for its output (None = skip them all)."""
+    dropped: set[Path] = set()
+    for out, sources in clashes:
+        chosen = choices.get(output_key(out))
+        dropped.update(src for src in sources if src != chosen)
+    return [f for f in files if f not in dropped]
+
+
+def existing_outputs(plan: list[tuple[Path, list[Path]]]) -> list[Path]:
+    seen: set[str] = set()
+    found = []
+    for _source, outputs in plan:
+        for out in outputs:
+            key = output_key(out)
+            if key not in seen and out.exists():
+                seen.add(key)
+                found.append(out)
+    return found
+
+
 def subprocess_window_options() -> dict[str, object]:
     if os.name != "nt":
         return {}
@@ -328,7 +379,10 @@ class TextureWorkshopApp:
         self.mode = StringVar(value=saved_mode if saved_mode in MODES else "ace_png")
         self.recursive = BooleanVar(value=self.config.getboolean("settings", "recursive", fallback=False))
         self.keep_intermediate = BooleanVar(value=self.config.getboolean("settings", "keep_intermediate", fallback=False))
-        self.overwrite_policy = StringVar(value=self.config.get("settings", "overwrite_policy", fallback="backup"))
+        saved_policy = self.config.get("settings", "overwrite_policy", fallback="ask")
+        self.overwrite_policy = StringVar(value=saved_policy if saved_policy in {value for _label, value in OVERWRITE_POLICY_OPTIONS} else "ask")
+        # Concrete policy chosen for the batch currently running (never "ask").
+        self.run_policy: str | None = None
         saved_compression = self.config.get("settings", "dds_compression", fallback="auto")
         self.dds_compression = StringVar(value=saved_compression if saved_compression in {value for _label, value in DDS_COMPRESSION_OPTIONS} else "auto")
         saved_mipmaps = self.config.get("settings", "dds_mipmaps", fallback="none")
@@ -475,8 +529,10 @@ class TextureWorkshopApp:
         self.keep_intermediate_check = ttk.Checkbutton(opts, text="Keep intermediate PNG files for ACE to DDS", variable=self.keep_intermediate)
         self.keep_intermediate_check.grid(row=0, column=1, sticky="w", padx=(0, 18))
         ttk.Label(opts, text="Existing outputs:", style="Panel.TLabel").grid(row=1, column=0, sticky="w", pady=(8, 0))
-        for idx, (label, value) in enumerate((("Skip", "skip"), ("Overwrite", "overwrite"), ("Backup then overwrite", "backup"))):
-            ttk.Radiobutton(opts, text=label, variable=self.overwrite_policy, value=value).grid(row=1, column=idx + 1, sticky="w", pady=(8, 0), padx=(0, 18))
+        policy_row = ttk.Frame(opts, style="Panel.TFrame")
+        policy_row.grid(row=1, column=1, columnspan=5, sticky="w", pady=(8, 0))
+        for label, value in OVERWRITE_POLICY_OPTIONS:
+            ttk.Radiobutton(policy_row, text=label, variable=self.overwrite_policy, value=value).pack(side=LEFT, padx=(0, 18))
         ttk.Label(opts, text="DDS compression:", style="Panel.TLabel").grid(row=2, column=0, sticky="w", pady=(8, 0))
         self.dds_option_widgets: list[ttk.Radiobutton] = []
         for idx, (label, value) in enumerate(DDS_COMPRESSION_OPTIONS):
@@ -757,28 +813,87 @@ class TextureWorkshopApp:
             self.append_log(message)
             messagebox.showerror(APP_NAME, message, parent=self.root)
             return
+        prepared = self.prepare_run()
+        if prepared is None:
+            self.append_log("Run cancelled before any files were converted.")
+            return
+        files, policy, notes = prepared
         self.abort_requested = False
         self.set_running(True)
-        self.worker = threading.Thread(target=self.run_batch, daemon=True)
+        self.worker = threading.Thread(target=self.run_batch, kwargs={"files": files, "policy": policy, "notes": notes}, daemon=True)
         self.worker.start()
+
+    def batch_roots(self) -> tuple[Path, Path | None, Path | None]:
+        source = Path(self.source_path.get()).resolve()
+        output_root = None if self.use_source_output.get() else Path(self.output_path.get()).resolve()
+        return source, (source if source.is_dir() else None), output_root
+
+    def active_policy(self) -> str:
+        """Overwrite policy for the running batch. "ask" is never applied blindly: unresolved means skip."""
+        policy = self.run_policy or self.overwrite_policy.get()
+        return "skip" if policy == "ask" else policy
+
+    def prepare_run(self) -> tuple[list[Path], str, list[str]] | None:
+        """Resolve output clashes and existing outputs with the user. Returns None if cancelled."""
+        mode = self.mode.get()
+        source, source_root, output_root = self.batch_roots()
+        files = collect_sources(source, mode, self.recursive.get())
+        keep = mode == "ace_dds" and self.keep_intermediate.get()
+        notes: list[str] = []
+
+        clashes = find_output_clashes(plan_outputs(files, mode, source_root, output_root, keep))
+        if clashes:
+            choices = self.ask_clash_choices(clashes)
+            if choices is None:
+                return None
+            files = apply_clash_choices(files, clashes, choices)
+            for out, sources in clashes:
+                chosen = choices.get(output_key(out))
+                if chosen is None:
+                    notes.append(f"Same-name clash: skipped all of {', '.join(s.name for s in sources)} -> {out.name}")
+                else:
+                    others = ", ".join(s.name for s in sources if s != chosen)
+                    notes.append(f"Same-name clash: using {chosen.name} for {out.name} (skipped {others})")
+
+        policy = self.overwrite_policy.get()
+        if policy == "ask":
+            existing = existing_outputs(plan_outputs(files, mode, source_root, output_root, keep))
+            if existing:
+                policy = self.ask_existing_policy(existing)
+                if policy is None:
+                    return None
+                notes.append(f"Existing outputs ({len(existing)}): {dict((v, l) for l, v in OVERWRITE_POLICY_OPTIONS)[policy]} for this run")
+            else:
+                policy = "skip"
+        return files, policy, notes
+
+    def ask_clash_choices(self, clashes: list[tuple[Path, list[Path]]]) -> dict[str, Path | None] | None:
+        return ClashDialog(self.root, clashes).result
+
+    def ask_existing_policy(self, existing: list[Path]) -> str | None:
+        return ExistingOutputsDialog(self.root, existing).result
 
     def abort(self) -> None:
         self.abort_requested = True
         self.thread_log("Abort requested. The current file will finish first.")
 
-    def run_batch(self) -> None:
+    def run_batch(self, files: list[Path] | None = None, policy: str | None = None, notes: list[str] | None = None) -> None:
         ok = 0
         failed = 0
         skipped = 0
+        self.run_policy = policy
         try:
-            source = Path(self.source_path.get()).resolve()
             mode = self.mode.get()
-            output_root = None if self.use_source_output.get() else Path(self.output_path.get()).resolve()
+            source, source_root, output_root = self.batch_roots()
             if output_root:
                 output_root.mkdir(parents=True, exist_ok=True)
-            files = collect_sources(source, mode, self.recursive.get())
+            if files is None:
+                files = collect_sources(source, mode, self.recursive.get())
             self.thread_log(f"Texture Workshop {APP_VERSION}")
             self.log_support_paths()
+            self.thread_log(f"Existing outputs: {self.active_policy()}")
+            for note in notes or []:
+                self.thread_log(note)
             self.thread_log(f"Found {len(files)} file(s).")
             for index, file_path in enumerate(files, start=1):
                 if self.abort_requested:
@@ -786,7 +901,7 @@ class TextureWorkshopApp:
                     break
                 self.thread_log(f"\n[{index}/{len(files)}] {file_path}")
                 try:
-                    changed = self.process_one(file_path, source if source.is_dir() else None, output_root)
+                    changed = self.process_one(file_path, source_root, output_root)
                 except Exception as exc:
                     failed += 1
                     self.thread_log(f"ERROR: {exc}")
@@ -802,6 +917,7 @@ class TextureWorkshopApp:
             self.thread_log(f"Skipped  : {skipped}")
             self.thread_log(f"Failed   : {failed}")
         finally:
+            self.run_policy = None
             self.root.after(0, lambda: self.set_running(False))
 
     def process_one(self, file_path: Path, source_root: Path | None, output_root: Path | None) -> bool | None:
@@ -820,7 +936,7 @@ class TextureWorkshopApp:
         raise ValueError(f"Unknown mode: {mode}")
 
     def run_ace_to_png(self, ace: Path, png_out: Path) -> bool | None:
-        should_run, note = ensure_overwrite_policy(png_out, self.overwrite_policy.get())
+        should_run, note = ensure_overwrite_policy(png_out, self.active_policy())
         if note:
             self.thread_log(note)
         if not should_run:
@@ -831,7 +947,7 @@ class TextureWorkshopApp:
 
     def run_image_to_dds(self, image: Path, source_root: Path | None, output_root: Path | None) -> bool | None:
         dds_out = output_path_for(image, source_root, output_root, ".dds")
-        should_run, note = ensure_overwrite_policy(dds_out, self.overwrite_policy.get())
+        should_run, note = ensure_overwrite_policy(dds_out, self.active_policy())
         if note:
             self.thread_log(note)
         if not should_run:
@@ -855,7 +971,7 @@ class TextureWorkshopApp:
                 cleanup_dir.cleanup()
 
     def run_ace_to_dds(self, ace: Path, dds_out: Path) -> bool | None:
-        should_run, note = ensure_overwrite_policy(dds_out, self.overwrite_policy.get())
+        should_run, note = ensure_overwrite_policy(dds_out, self.active_policy())
         if note:
             self.thread_log(note)
         if not should_run:
@@ -883,7 +999,7 @@ class TextureWorkshopApp:
         (DXT3/DXT5 requested for a source without alpha), so an existing ACE file is
         only touched once a new one has actually been produced.
         """
-        policy = self.overwrite_policy.get()
+        policy = self.active_policy()
         if ace_out.exists() and policy == "skip":
             self.thread_log(f"SKIP existing output: {ace_out}")
             return None
@@ -941,6 +1057,100 @@ class TextureWorkshopApp:
         CONFIG_DIR.mkdir(parents=True, exist_ok=True)
         with CONFIG_FILE.open("w", encoding="utf-8") as fh:
             cfg.write(fh)
+
+
+class ModalDialog:
+    """Small modal Toplevel helper; subclasses fill self.body and set self.result."""
+
+    def __init__(self, parent, title: str) -> None:
+        self.result = None
+        self.win = Toplevel(parent)
+        self.win.title(title)
+        self.win.transient(parent)
+        self.win.resizable(True, True)
+        self.win.protocol("WM_DELETE_WINDOW", self.cancel)
+        self.body = ttk.Frame(self.win, padding=12)
+        self.body.pack(fill=BOTH, expand=True)
+
+    def run(self) -> None:
+        self.win.update_idletasks()
+        self.win.grab_set()
+        self.win.focus_set()
+        self.win.wait_window()
+
+    def cancel(self) -> None:
+        self.result = None
+        self.win.destroy()
+
+
+class ClashDialog(ModalDialog):
+    SKIP_LABEL = "Skip all of these"
+
+    def __init__(self, parent, clashes: list[tuple[Path, list[Path]]]) -> None:
+        super().__init__(parent, f"{APP_NAME} - Same-name sources")
+        self.clashes = clashes
+        ttk.Label(
+            self.body,
+            text=f"{len(clashes)} output file(s) would be written by more than one source.\nChoose which source to convert for each output, or skip them:",
+        ).pack(anchor="w", pady=(0, 8))
+        holder = ttk.Frame(self.body)
+        holder.pack(fill=BOTH, expand=True)
+        canvas = tk.Canvas(holder, highlightthickness=0, height=min(34 * (len(clashes) + 1) + 8, 360), width=640, bg=parent.cget("bg"))
+        scroll = ttk.Scrollbar(holder, orient=VERTICAL, command=canvas.yview)
+        canvas.configure(yscrollcommand=scroll.set)
+        rows = ttk.Frame(canvas)
+        rows.bind("<Configure>", lambda _e: canvas.configure(scrollregion=canvas.bbox("all")))
+        canvas.create_window((0, 0), window=rows, anchor="nw")
+        canvas.pack(side=LEFT, fill=BOTH, expand=True)
+        scroll.pack(side=RIGHT, fill=Y)
+        ttk.Label(rows, text="Output", font=("Segoe UI", 9, "bold")).grid(row=0, column=0, sticky="w", padx=(0, 12))
+        ttk.Label(rows, text="Use source", font=("Segoe UI", 9, "bold")).grid(row=0, column=1, sticky="w")
+        self.vars: list[tuple[Path, list[Path], StringVar]] = []
+        for row, (out, sources) in enumerate(clashes, start=1):
+            ttk.Label(rows, text=str(out)).grid(row=row, column=0, sticky="w", padx=(0, 12), pady=3)
+            var = StringVar(value=self.SKIP_LABEL)
+            values = [src.name for src in sources] + [self.SKIP_LABEL]
+            ttk.Combobox(rows, textvariable=var, values=values, state="readonly", width=28).grid(row=row, column=1, sticky="w", pady=3)
+            self.vars.append((out, sources, var))
+        buttons = ttk.Frame(self.body)
+        buttons.pack(fill=X, pady=(10, 0))
+        ttk.Button(buttons, text="Cancel run", command=self.cancel).pack(side=RIGHT)
+        ttk.Button(buttons, text="Continue", style="Primary.TButton", command=self.accept).pack(side=RIGHT, padx=(0, 6))
+        self.run()
+
+    def accept(self) -> None:
+        result: dict[str, Path | None] = {}
+        for out, sources, var in self.vars:
+            by_name = {src.name: src for src in sources}
+            result[output_key(out)] = by_name.get(var.get())
+        self.result = result
+        self.win.destroy()
+
+
+class ExistingOutputsDialog(ModalDialog):
+    def __init__(self, parent, existing: list[Path]) -> None:
+        super().__init__(parent, f"{APP_NAME} - Existing output files")
+        ttk.Label(self.body, text=f"{len(existing)} output file(s) already exist. What should this run do with them?").pack(anchor="w", pady=(0, 8))
+        holder = ttk.Frame(self.body)
+        holder.pack(fill=BOTH, expand=True)
+        listbox = tk.Listbox(holder, height=min(max(len(existing), 3), 12), width=90)
+        scroll = ttk.Scrollbar(holder, orient=VERTICAL, command=listbox.yview)
+        listbox.configure(yscrollcommand=scroll.set)
+        for path in existing:
+            listbox.insert(END, str(path))
+        listbox.pack(side=LEFT, fill=BOTH, expand=True)
+        scroll.pack(side=RIGHT, fill=Y)
+        buttons = ttk.Frame(self.body)
+        buttons.pack(fill=X, pady=(10, 0))
+        ttk.Button(buttons, text="Cancel run", command=self.cancel).pack(side=RIGHT)
+        ttk.Button(buttons, text="Skip all", command=lambda: self.choose("skip")).pack(side=RIGHT, padx=(0, 6))
+        ttk.Button(buttons, text="Overwrite all", command=lambda: self.choose("overwrite")).pack(side=RIGHT, padx=(0, 6))
+        ttk.Button(buttons, text="Backup all, then overwrite", style="Primary.TButton", command=lambda: self.choose("backup")).pack(side=RIGHT, padx=(0, 6))
+        self.run()
+
+    def choose(self, policy: str) -> None:
+        self.result = policy
+        self.win.destroy()
 
 
 def main() -> None:

@@ -152,6 +152,110 @@ class TextureWorkshopHelperTests(unittest.TestCase):
             finally:
                 root.destroy()
 
+    def test_output_clashes_found_case_insensitively(self):
+        root = Path("C:/tex")
+        files = [root / "box.png", root / "box.tga", root / "car.png", root / "sub" / "box.bmp"]
+        plan = dw.plan_outputs(files, "image_ace", root, None)
+        clashes = dw.find_output_clashes(plan)
+        self.assertEqual(len(clashes), 1)
+        out, sources = clashes[0]
+        self.assertEqual(out, root / "box.ace")
+        self.assertEqual(sources, [root / "box.png", root / "box.tga"])
+        # Flattened output (single-file style, no source root) makes the subfolder copy clash too.
+        flat = dw.find_output_clashes(dw.plan_outputs(files, "image_ace", None, Path("C:/out")))
+        self.assertEqual([len(s) for _o, s in flat], [3])
+        if dw.os.name == "nt":
+            upper = dw.find_output_clashes([(root / "A.png", [root / "A.ace"]), (root / "a.tga", [root / "a.ace"])])
+            self.assertEqual(len(upper), 1)
+
+    def test_apply_clash_choices_keeps_only_chosen_source(self):
+        root = Path("C:/tex")
+        files = [root / "box.png", root / "box.tga", root / "car.png", root / "car.bmp", root / "solo.png"]
+        clashes = dw.find_output_clashes(dw.plan_outputs(files, "image_dds", root, None))
+        choices = {dw.output_key(root / "box.dds"): root / "box.tga", dw.output_key(root / "car.dds"): None}
+        self.assertEqual(dw.apply_clash_choices(files, clashes, choices), [root / "box.tga", root / "solo.png"])
+
+    def test_keep_intermediate_png_counts_as_existing_output(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            (root / "a.ace").write_text("x")
+            (root / "a.png").write_text("old intermediate")
+            plan = dw.plan_outputs([root / "a.ace"], "ace_dds", root, None, keep_intermediate=True)
+            self.assertEqual(dw.existing_outputs(plan), [root / "a.png"])
+            plan = dw.plan_outputs([root / "a.ace"], "ace_dds", root, None, keep_intermediate=False)
+            self.assertEqual(dw.existing_outputs(plan), [])
+
+    def test_prepare_run_asks_about_clashes_and_existing_files(self):
+        with tempfile.TemporaryDirectory() as td:
+            src = Path(td)
+            for name in ["box.png", "box.tga", "car.png", "old.png"]:
+                (src / name).write_text("x")
+            (src / "old.ace").write_text("existing")
+            root = tk.Tk()
+            root.withdraw()
+            try:
+                app = dw.TextureWorkshopApp(root)
+                app.source_path.set(str(src))
+                app.use_source_output.set(True)
+                app.recursive.set(False)
+                app.mode.set("image_ace")
+                app.overwrite_policy.set("ask")
+                asked = {}
+
+                def clash_answer(clashes):
+                    asked["clashes"] = clashes
+                    return {dw.output_key(clashes[0][0]): clashes[0][1][1]}
+
+                def existing_answer(existing):
+                    asked["existing"] = existing
+                    return "backup"
+
+                app.ask_clash_choices = clash_answer
+                app.ask_existing_policy = existing_answer
+                files, policy, notes = app.prepare_run()
+                self.assertEqual([p.name for p in files], ["box.tga", "car.png", "old.png"])
+                self.assertEqual(policy, "backup")
+                self.assertEqual([o.name for o, _s in asked["clashes"]], ["box.ace"])
+                self.assertEqual([p.name for p in asked["existing"]], ["old.ace"])
+                self.assertTrue(any("using box.tga" in n for n in notes))
+
+                # Cancelling either dialog cancels the run.
+                app.ask_existing_policy = lambda existing: None
+                self.assertIsNone(app.prepare_run())
+                app.ask_clash_choices = lambda clashes: None
+                self.assertIsNone(app.prepare_run())
+
+                # A fixed policy never shows the existing-files dialog.
+                app.ask_clash_choices = lambda clashes: {dw.output_key(clashes[0][0]): None}
+                app.ask_existing_policy = lambda existing: self.fail("should not ask")
+                app.overwrite_policy.set("overwrite")
+                files, policy, _notes = app.prepare_run()
+                self.assertEqual([p.name for p in files], ["car.png", "old.png"])
+                self.assertEqual(policy, "overwrite")
+
+                # Unresolved "ask" is never applied blindly.
+                app.overwrite_policy.set("ask")
+                app.run_policy = None
+                self.assertEqual(app.active_policy(), "skip")
+            finally:
+                root.destroy()
+
+    def test_default_overwrite_policy_is_ask(self):
+        originals = (dw.CONFIG_DIR, dw.CONFIG_FILE, dw.LEGACY_CONFIG_FILE)
+        with tempfile.TemporaryDirectory() as td:
+            dw.CONFIG_DIR = Path(td) / "TextureWorkshop"
+            dw.CONFIG_FILE = dw.CONFIG_DIR / "settings.ini"
+            dw.LEGACY_CONFIG_FILE = Path(td) / "none" / "settings.ini"
+            try:
+                root = tk.Tk()
+                root.withdraw()
+                try:
+                    self.assertEqual(dw.TextureWorkshopApp(root).overwrite_policy.get(), "ask")
+                finally:
+                    root.destroy()
+            finally:
+                dw.CONFIG_DIR, dw.CONFIG_FILE, dw.LEGACY_CONFIG_FILE = originals
+
     def test_command_available_and_missing_support_files(self):
         self.assertFalse(dw.command_available(str(Path("definitely_missing_support_file.exe"))))
         root = tk.Tk()
