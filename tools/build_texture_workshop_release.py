@@ -147,6 +147,7 @@ def main() -> int:
     copy_required(DIST / APP_EXE_NAME, release_dir / APP_EXE_NAME)
     copy_required(ROOT / "ace2png.exe", release_dir / "ace2png.exe")
     copy_required(ROOT / "png2dds.exe", release_dir / "png2dds.exe")
+    copy_required(ROOT / "png2ace.exe", release_dir / "png2ace.exe")
     copy_required(ROOT / "README.md", release_dir / "README.md")
     copy_required(ROOT / "SHA256SUMS.txt", release_dir / "SHA256SUMS-backend.txt")
     if (ROOT / "Documentation").exists():
@@ -161,6 +162,7 @@ def main() -> int:
         "- TextureWorkshop.exe: graphical front end",
         "- ace2png.exe: ACE to PNG backend",
         "- png2dds.exe: PNG to DDS backend",
+        "- png2ace.exe: PNG/TGA/BMP to ACE backend",
         "- ImageMagick/: official portable ImageMagick runtime",
         "",
         "Checksums:",

@@ -1,10 +1,25 @@
 import configparser
+import struct
 import tempfile
+import zlib
 import tkinter as tk
 import unittest
 from pathlib import Path
 
 import texture_workshop as dw
+
+
+def write_png(path: Path, width: int, height: int, rgba: bool) -> None:
+    """Write a small solid-colour PNG without needing Pillow."""
+    channels = 4 if rgba else 3
+    pixel = bytes([200, 40, 40, 128][:channels])
+    raw = b"".join(b"\x00" + pixel * width for _ in range(height))
+
+    def chunk(kind: bytes, data: bytes) -> bytes:
+        return struct.pack(">I", len(data)) + kind + data + struct.pack(">I", zlib.crc32(kind + data) & 0xFFFFFFFF)
+
+    header = struct.pack(">IIBBBBB", width, height, 8, 6 if rgba else 2, 0, 0, 0)
+    path.write_bytes(b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", header) + chunk(b"IDAT", zlib.compress(raw)) + chunk(b"IEND", b""))
 
 
 class TextureWorkshopHelperTests(unittest.TestCase):
@@ -18,6 +33,8 @@ class TextureWorkshopHelperTests(unittest.TestCase):
             self.assertEqual([p.name for p in dw.collect_sources(root, "ace_png", False)], ["a.ace"])
             self.assertEqual([p.name for p in dw.collect_sources(root, "image_dds", False)], ["b.png", "c.tga", "d.bmp"])
             self.assertEqual([p.name for p in dw.collect_sources(root, "ace_dds", True)], ["a.ace", "z.ace"])
+            (root / "f.targa").write_text("x")
+            self.assertEqual([p.name for p in dw.collect_sources(root, "image_ace", False)], ["b.png", "c.tga", "d.bmp", "f.targa"])
 
     def test_output_paths_source_folder_and_preserved_tree(self):
         root = Path("C:/route/textures")
@@ -60,6 +77,80 @@ class TextureWorkshopHelperTests(unittest.TestCase):
     def test_png2dds_command_includes_compression(self):
         cmd = dw.png2dds_command("png2dds.exe", Path("input.png"), Path("output.dds"), "dxt5", "generate")
         self.assertEqual(cmd, ["png2dds.exe", "input.png", "--destination", "output.dds", "--compression", "dxt5", "--mipmaps", "generate"])
+
+    def test_png2ace_command_format_and_mipmaps(self):
+        cmd = dw.png2ace_command("png2ace.exe", Path("input.png"), Path("output.ace"), "dxt1", "none")
+        self.assertEqual(cmd, ["png2ace.exe", "input.png", "output.ace", "--format", "dxt1"])
+        cmd = dw.png2ace_command("png2ace.exe", Path("input.png"), Path("output.ace"), "structured", "generate")
+        self.assertEqual(cmd, ["png2ace.exe", "input.png", "output.ace", "--format", "structured", "--mipmaps"])
+
+    def test_png2ace_missing_support_file_reported(self):
+        root = tk.Tk()
+        root.withdraw()
+        try:
+            app = dw.TextureWorkshopApp(root)
+            app.mode.set("image_ace")
+            app.png2ace_cmd.set(str(Path("missing_png2ace.exe")))
+            missing = app.missing_support_files()
+            self.assertTrue(any("png2ace.exe" in item for item in missing))
+            self.assertFalse(any("png2dds" in item or "ImageMagick" in item for item in missing))
+        finally:
+            root.destroy()
+
+    def test_image_to_ace_with_bundled_png2ace(self):
+        png2ace = dw.app_dir() / "png2ace.exe"
+        if not png2ace.exists():
+            self.skipTest("png2ace.exe not present")
+        with tempfile.TemporaryDirectory() as td:
+            src = Path(td) / "src"
+            out = Path(td) / "out"
+            src.mkdir()
+            write_png(src / "opaque.png", 32, 32, rgba=False)
+            write_png(src / "alpha.png", 16, 16, rgba=True)
+            root = tk.Tk()
+            root.withdraw()
+            try:
+                app = dw.TextureWorkshopApp(root)
+                app.png2ace_cmd.set(str(png2ace))
+                app.mode.set("image_ace")
+                app.thread_log = lambda _text: None
+                app.overwrite_policy.set("backup")
+
+                app.ace_format.set("structured")
+                app.ace_mipmaps.set("generate")
+                self.assertTrue(app.process_one(src / "opaque.png", src, out))
+                ace = out / "opaque.ace"
+                self.assertTrue(ace.read_bytes().startswith(b"SIMISA@@"))
+
+                # DXT5 on a no-alpha source is skipped by png2ace: the existing ACE must survive untouched.
+                before = ace.read_bytes()
+                app.ace_format.set("dxt5")
+                app.ace_mipmaps.set("none")
+                self.assertIsNone(app.process_one(src / "opaque.png", src, out))
+                self.assertEqual(ace.read_bytes(), before)
+                self.assertEqual(list(out.glob("*.bak")), [])
+                self.assertEqual([p.name for p in out.iterdir()], ["opaque.ace"])
+
+                # A real re-conversion backs up the previous ACE.
+                app.ace_format.set("dxt1")
+                self.assertTrue(app.process_one(src / "opaque.png", src, out))
+                self.assertEqual(len(list(out.glob("opaque.ace.*.bak"))), 1)
+
+                app.ace_format.set("dxt5")
+                self.assertTrue(app.process_one(src / "alpha.png", src, out))
+                self.assertTrue((out / "alpha.ace").exists())
+
+                # Mipmaps on a non-square image fail cleanly.
+                write_png(src / "wide.png", 30, 20, rgba=False)
+                app.ace_format.set("structured")
+                app.ace_mipmaps.set("generate")
+                self.assertFalse(app.process_one(src / "wide.png", src, out))
+                self.assertFalse((out / "wide.ace").exists())
+
+                app.overwrite_policy.set("skip")
+                self.assertIsNone(app.process_one(src / "alpha.png", src, out))
+            finally:
+                root.destroy()
 
     def test_command_available_and_missing_support_files(self):
         self.assertFalse(dw.command_available(str(Path("definitely_missing_support_file.exe"))))
@@ -129,6 +220,18 @@ class TextureWorkshopHelperTests(unittest.TestCase):
                 folders = [app.source_tree.item(item, "values")[1] for item in app.source_tree.get_children()]
                 self.assertEqual(names, ["a.ace", "z.ace"])
                 self.assertEqual(folders, [root_path.name, str(Path(root_path.name) / "sub")])
+
+                app.mode.set("image_ace")
+                app.recursive.set(False)
+                app.update_mode_state()
+                names = [app.source_tree.item(item, "values")[0] for item in app.source_tree.get_children()]
+                self.assertEqual(names, ["b.png", "c.tga", "d.bmp"])
+                self.assertTrue(all(str(w.cget("state")) == "normal" for w in app.ace_option_widgets))
+                self.assertTrue(all(str(w.cget("state")) == "disabled" for w in app.dds_option_widgets))
+                app.mode.set("image_dds")
+                app.update_mode_state()
+                self.assertTrue(all(str(w.cget("state")) == "disabled" for w in app.ace_option_widgets))
+                self.assertTrue(all(str(w.cget("state")) == "normal" for w in app.dds_option_widgets))
             finally:
                 root.destroy()
 
@@ -163,6 +266,8 @@ class TextureWorkshopHelperTests(unittest.TestCase):
                 app.theme_name.set("Dark")
                 app.dds_compression.set("dxt5")
                 app.dds_mipmaps.set("generate")
+                app.ace_format.set("auto-dxt")
+                app.ace_mipmaps.set("generate")
                 app.apply_theme_from_settings()
                 root.update()
                 self.assertEqual(root.cget("bg"), dw.THEMES["Dark"].app_bg)
@@ -176,6 +281,8 @@ class TextureWorkshopHelperTests(unittest.TestCase):
                 self.assertEqual(saved, "Dark")
                 self.assertEqual(cfg.get("settings", "dds_compression"), "dxt5")
                 self.assertEqual(cfg.get("settings", "dds_mipmaps"), "generate")
+                self.assertEqual(cfg.get("settings", "ace_format"), "auto-dxt")
+                self.assertEqual(cfg.get("settings", "ace_mipmaps"), "generate")
             finally:
                 dw.CONFIG_DIR = original_config_dir
                 dw.CONFIG_FILE = original_config_file

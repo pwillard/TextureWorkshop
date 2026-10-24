@@ -19,17 +19,23 @@ import tkinter.font as tkfont
 from tkinter.scrolledtext import ScrolledText
 
 APP_NAME = "Texture Workshop"
-APP_VERSION = "0.2.0"
+APP_VERSION = "0.3.0"
 APP_SUBTITLE = "ACE / PNG / DDS TEXTURE CONVERSION"
 CONFIG_DIR = Path(os.environ.get("APPDATA", Path.home() / "AppData" / "Roaming")) / "TextureWorkshop"
 CONFIG_FILE = CONFIG_DIR / "settings.ini"
 # Settings from the previous name (DDS Workshop); read once if no Texture Workshop settings exist yet.
 LEGACY_CONFIG_FILE = CONFIG_DIR.parent / "DDSWorkshop" / "settings.ini"
 IMAGE_EXTS = {".png", ".tga", ".bmp"}
+ACE_SOURCE_EXTS = {".png", ".tga", ".targa", ".bmp"}
 ACE_EXTS = {".ace"}
+MODES = ("ace_png", "ace_dds", "image_dds", "image_ace")
+ACE_INPUT_MODES = {"ace_png", "ace_dds"}
+DDS_OUTPUT_MODES = {"image_dds", "ace_dds"}
 SOURCE_COLUMNS = (("name", "File", 260), ("folder", "Folder", 360), ("type", "Type", 70), ("size", "Size", 90))
 DDS_COMPRESSION_OPTIONS = (("Auto", "auto"), ("Force DXT1", "dxt1"), ("Force DXT5", "dxt5"))
 DDS_MIPMAP_OPTIONS = (("No mipmaps", "none"), ("Generate mipmaps", "generate"))
+ACE_FORMAT_OPTIONS = (("Structured (safest)", "structured"), ("DXT1", "dxt1"), ("DXT3", "dxt3"), ("DXT5", "dxt5"), ("Auto DXT", "auto-dxt"))
+ACE_MIPMAP_OPTIONS = (("No mipmaps", "none"), ("Generate mipmaps (square power-of-two only)", "generate"))
 
 
 @dataclass(frozen=True)
@@ -193,7 +199,12 @@ def collect_sources(source: Path, mode: str, recursive: bool) -> list[Path]:
         candidates = [p for p in source.glob(pattern) if p.is_file()]
     else:
         return []
-    allowed = ACE_EXTS if mode in {"ace_png", "ace_dds"} else IMAGE_EXTS
+    if mode in ACE_INPUT_MODES:
+        allowed = ACE_EXTS
+    elif mode == "image_ace":
+        allowed = ACE_SOURCE_EXTS
+    else:
+        allowed = IMAGE_EXTS
     return sorted(p for p in candidates if p.suffix.lower() in allowed)
 
 
@@ -278,6 +289,13 @@ def png2dds_command(png2dds: str, source: Path, destination: Path, compression: 
     return [png2dds, str(source), "--destination", str(destination), "--compression", compression, "--mipmaps", mipmaps]
 
 
+def png2ace_command(png2ace: str, source: Path, destination: Path, ace_format: str, mipmaps: str) -> list[str]:
+    cmd = [png2ace, str(source), str(destination), "--format", ace_format]
+    if mipmaps == "generate":
+        cmd.append("--mipmaps")
+    return cmd
+
+
 class TextureWorkshopApp:
     def __init__(self, root: Tk) -> None:
         self.root = root
@@ -306,7 +324,8 @@ class TextureWorkshopApp:
         self.source_path = StringVar(value=self.config.get("settings", "source_path", fallback=os.getcwd()))
         self.use_source_output = BooleanVar(value=self.config.getboolean("settings", "use_source_output", fallback=True))
         self.output_path = StringVar(value=self.config.get("settings", "output_path", fallback=str(Path.cwd() / "converted")))
-        self.mode = StringVar(value=self.config.get("settings", "mode", fallback="ace_png"))
+        saved_mode = self.config.get("settings", "mode", fallback="ace_png")
+        self.mode = StringVar(value=saved_mode if saved_mode in MODES else "ace_png")
         self.recursive = BooleanVar(value=self.config.getboolean("settings", "recursive", fallback=False))
         self.keep_intermediate = BooleanVar(value=self.config.getboolean("settings", "keep_intermediate", fallback=False))
         self.overwrite_policy = StringVar(value=self.config.get("settings", "overwrite_policy", fallback="backup"))
@@ -314,8 +333,13 @@ class TextureWorkshopApp:
         self.dds_compression = StringVar(value=saved_compression if saved_compression in {value for _label, value in DDS_COMPRESSION_OPTIONS} else "auto")
         saved_mipmaps = self.config.get("settings", "dds_mipmaps", fallback="none")
         self.dds_mipmaps = StringVar(value=saved_mipmaps if saved_mipmaps in {value for _label, value in DDS_MIPMAP_OPTIONS} else "none")
+        saved_ace_format = self.config.get("settings", "ace_format", fallback="structured")
+        self.ace_format = StringVar(value=saved_ace_format if saved_ace_format in {value for _label, value in ACE_FORMAT_OPTIONS} else "structured")
+        saved_ace_mipmaps = self.config.get("settings", "ace_mipmaps", fallback="none")
+        self.ace_mipmaps = StringVar(value=saved_ace_mipmaps if saved_ace_mipmaps in {value for _label, value in ACE_MIPMAP_OPTIONS} else "none")
         self.ace2png_cmd = StringVar(value=resolve_tool(self.config.get("settings", "ace2png_cmd", fallback=""), ("ace2png.exe", "ace2png")))
         self.png2dds_cmd = StringVar(value=resolve_tool(self.config.get("settings", "png2dds_cmd", fallback=""), ("png2dds.exe", "png2dds")))
+        self.png2ace_cmd = StringVar(value=resolve_tool(self.config.get("settings", "png2ace_cmd", fallback=""), ("png2ace.exe", "png2ace")))
         self.magick_cmd = StringVar(value=resolve_magick(self.config.get("settings", "magick_cmd", fallback="")))
         self.source_files: list[Path] = []
         self.source_item_paths: dict[str, Path] = {}
@@ -436,9 +460,14 @@ class TextureWorkshopApp:
 
         mode_panel = self.panel(self.content, "Conversion Mode")
         mode_panel.pack(fill=X, pady=(0, 8))
-        ttk.Radiobutton(mode_panel, text="ACE to editable PNG", variable=self.mode, value="ace_png", command=self.update_mode_state).pack(side=LEFT, padx=(0, 18))
-        ttk.Radiobutton(mode_panel, text="PNG/TGA/BMP to DDS", variable=self.mode, value="image_dds", command=self.update_mode_state).pack(side=LEFT, padx=(0, 18))
-        ttk.Radiobutton(mode_panel, text="ACE directly to DDS", variable=self.mode, value="ace_dds", command=self.update_mode_state).pack(side=LEFT, padx=(0, 18))
+        mode_buttons = (
+            ("ACE to editable PNG", "ace_png", 0, 0),
+            ("ACE directly to DDS", "ace_dds", 0, 1),
+            ("PNG/TGA/BMP to DDS", "image_dds", 1, 0),
+            ("PNG/TGA/BMP to ACE", "image_ace", 1, 1),
+        )
+        for text, value, row, column in mode_buttons:
+            ttk.Radiobutton(mode_panel, text=text, variable=self.mode, value=value, command=self.update_mode_state).grid(row=row, column=column, sticky="w", padx=(0, 28), pady=2)
 
         opts = self.panel(self.content, "Batch and Existing File Options")
         opts.pack(fill=X, pady=(0, 8))
@@ -449,11 +478,35 @@ class TextureWorkshopApp:
         for idx, (label, value) in enumerate((("Skip", "skip"), ("Overwrite", "overwrite"), ("Backup then overwrite", "backup"))):
             ttk.Radiobutton(opts, text=label, variable=self.overwrite_policy, value=value).grid(row=1, column=idx + 1, sticky="w", pady=(8, 0), padx=(0, 18))
         ttk.Label(opts, text="DDS compression:", style="Panel.TLabel").grid(row=2, column=0, sticky="w", pady=(8, 0))
+        self.dds_option_widgets: list[ttk.Radiobutton] = []
         for idx, (label, value) in enumerate(DDS_COMPRESSION_OPTIONS):
-            ttk.Radiobutton(opts, text=label, variable=self.dds_compression, value=value).grid(row=2, column=idx + 1, sticky="w", pady=(8, 0), padx=(0, 18))
+            button = ttk.Radiobutton(opts, text=label, variable=self.dds_compression, value=value)
+            button.grid(row=2, column=idx + 1, sticky="w", pady=(8, 0), padx=(0, 18))
+            self.dds_option_widgets.append(button)
         ttk.Label(opts, text="DDS mipmaps:", style="Panel.TLabel").grid(row=3, column=0, sticky="w", pady=(8, 0))
         for idx, (label, value) in enumerate(DDS_MIPMAP_OPTIONS):
-            ttk.Radiobutton(opts, text=label, variable=self.dds_mipmaps, value=value).grid(row=3, column=idx + 1, sticky="w", pady=(8, 0), padx=(0, 18))
+            button = ttk.Radiobutton(opts, text=label, variable=self.dds_mipmaps, value=value)
+            button.grid(row=3, column=idx + 1, sticky="w", pady=(8, 0), padx=(0, 18))
+            self.dds_option_widgets.append(button)
+
+        ace_opts = self.panel(self.content, "ACE Output Options")
+        ace_opts.pack(fill=X, pady=(0, 8))
+        self.ace_option_widgets: list[ttk.Radiobutton] = []
+        ttk.Label(ace_opts, text="ACE format:", style="Panel.TLabel").grid(row=0, column=0, sticky="w")
+        for idx, (label, value) in enumerate(ACE_FORMAT_OPTIONS):
+            button = ttk.Radiobutton(ace_opts, text=label, variable=self.ace_format, value=value)
+            button.grid(row=0, column=idx + 1, sticky="w", padx=(0, 14))
+            self.ace_option_widgets.append(button)
+        ttk.Label(ace_opts, text="ACE mipmaps:", style="Panel.TLabel").grid(row=1, column=0, sticky="w", pady=(8, 0))
+        for idx, (label, value) in enumerate(ACE_MIPMAP_OPTIONS):
+            button = ttk.Radiobutton(ace_opts, text=label, variable=self.ace_mipmaps, value=value)
+            button.grid(row=1, column=1 + idx, columnspan=1 if idx == 0 else 4, sticky="w", pady=(8, 0), padx=(0, 14))
+            self.ace_option_widgets.append(button)
+        ttk.Label(
+            ace_opts,
+            text="DXT3/DXT5 need a source with an alpha channel; images without alpha are skipped. Auto DXT picks DXT1 or DXT5.",
+            style="Help.TLabel",
+        ).grid(row=2, column=0, columnspan=6, sticky="w", pady=(8, 0))
 
         status = self.panel(self.content, "Status")
         status.pack(fill=X, pady=(0, 8))
@@ -488,12 +541,12 @@ class TextureWorkshopApp:
         file_menu.add_command(label="Exit", command=self.root.destroy)
         menu.add_cascade(label="File", menu=file_menu)
         help_menu = tk.Menu(menu, tearoff=False)
-        help_menu.add_command(label="About", command=lambda: messagebox.showinfo(APP_NAME, f"{APP_NAME} {APP_VERSION}\nFrontend for ace2png.exe and png2dds.exe", parent=self.root))
+        help_menu.add_command(label="About", command=lambda: messagebox.showinfo(APP_NAME, f"{APP_NAME} {APP_VERSION}\nFormerly DDS Workshop\nFrontend for ace2png.exe, png2dds.exe and png2ace.exe", parent=self.root))
         menu.add_cascade(label="Help", menu=help_menu)
         self.root.config(menu=menu)
 
     def browse_source_file(self) -> None:
-        path = filedialog.askopenfilename(parent=self.root, filetypes=[("Supported textures", "*.ace *.png *.tga *.bmp"), ("All files", "*.*")])
+        path = filedialog.askopenfilename(parent=self.root, filetypes=[("Supported textures", "*.ace *.png *.tga *.targa *.bmp"), ("All files", "*.*")])
         if path:
             self.source_path.set(path)
 
@@ -513,8 +566,12 @@ class TextureWorkshopApp:
         self.output_entry.configure(state="disabled" if self.use_source_output.get() else "normal")
 
     def update_mode_state(self) -> None:
-        state = "normal" if self.mode.get() == "ace_dds" else "disabled"
-        self.keep_intermediate_check.configure(state=state)
+        mode = self.mode.get()
+        self.keep_intermediate_check.configure(state="normal" if mode == "ace_dds" else "disabled")
+        for widget in getattr(self, "dds_option_widgets", []):
+            widget.configure(state="normal" if mode in DDS_OUTPUT_MODES else "disabled")
+        for widget in getattr(self, "ace_option_widgets", []):
+            widget.configure(state="normal" if mode == "image_ace" else "disabled")
         self.refresh_source_list()
 
     def refresh_source_list(self) -> None:
@@ -588,14 +645,17 @@ class TextureWorkshopApp:
         ttk.Label(frame, text="png2dds executable").grid(row=1, column=0, sticky="w", padx=(0, 8), pady=4)
         ttk.Entry(frame, textvariable=self.png2dds_cmd, width=60).grid(row=1, column=1, sticky="ew", pady=4)
         ttk.Button(frame, text="Browse...", command=lambda: self.browse_tool(self.png2dds_cmd, win)).grid(row=1, column=2, padx=(8, 0), pady=4)
-        ttk.Label(frame, text="ImageMagick magick executable").grid(row=2, column=0, sticky="w", padx=(0, 8), pady=4)
-        ttk.Entry(frame, textvariable=self.magick_cmd, width=60).grid(row=2, column=1, sticky="ew", pady=4)
-        ttk.Button(frame, text="Browse...", command=lambda: self.browse_tool(self.magick_cmd, win)).grid(row=2, column=2, padx=(8, 0), pady=4)
-        ttk.Label(frame, text="Theme").grid(row=3, column=0, sticky="w", padx=(0, 8), pady=4)
+        ttk.Label(frame, text="png2ace executable").grid(row=2, column=0, sticky="w", padx=(0, 8), pady=4)
+        ttk.Entry(frame, textvariable=self.png2ace_cmd, width=60).grid(row=2, column=1, sticky="ew", pady=4)
+        ttk.Button(frame, text="Browse...", command=lambda: self.browse_tool(self.png2ace_cmd, win)).grid(row=2, column=2, padx=(8, 0), pady=4)
+        ttk.Label(frame, text="ImageMagick magick executable").grid(row=3, column=0, sticky="w", padx=(0, 8), pady=4)
+        ttk.Entry(frame, textvariable=self.magick_cmd, width=60).grid(row=3, column=1, sticky="ew", pady=4)
+        ttk.Button(frame, text="Browse...", command=lambda: self.browse_tool(self.magick_cmd, win)).grid(row=3, column=2, padx=(8, 0), pady=4)
+        ttk.Label(frame, text="Theme").grid(row=4, column=0, sticky="w", padx=(0, 8), pady=4)
         theme_box = ttk.Combobox(frame, textvariable=self.theme_name, values=list(THEMES), state="readonly", width=18)
-        theme_box.grid(row=3, column=1, sticky="w", pady=4)
+        theme_box.grid(row=4, column=1, sticky="w", pady=4)
         theme_box.bind("<<ComboboxSelected>>", lambda _event: self.apply_theme_from_settings())
-        ttk.Button(frame, text="Save", style="Primary.TButton", command=lambda: (self.save_config(), win.destroy())).grid(row=4, column=2, sticky="e", pady=(12, 0))
+        ttk.Button(frame, text="Save", style="Primary.TButton", command=lambda: (self.save_config(), win.destroy())).grid(row=5, column=2, sticky="e", pady=(12, 0))
 
     def browse_tool(self, var: StringVar, parent) -> None:
         path = filedialog.askopenfilename(parent=parent, filetypes=[("Executable", "*.exe"), ("All files", "*.*")])
@@ -648,10 +708,13 @@ class TextureWorkshopApp:
     def missing_support_files(self) -> list[str]:
         mode = self.mode.get()
         required: list[tuple[str, str]] = []
-        if mode in {"ace_png", "ace_dds"}:
+        if mode in ACE_INPUT_MODES:
             required.append(("Bundled ace2png.exe", str(app_dir() / "ace2png.exe")))
             required.append(("ace2png.exe", self.ace2png_cmd.get()))
-        if mode in {"image_dds", "ace_dds"}:
+        if mode == "image_ace":
+            required.append(("Bundled png2ace.exe", str(app_dir() / "png2ace.exe")))
+            required.append(("png2ace.exe", self.png2ace_cmd.get()))
+        if mode in DDS_OUTPUT_MODES:
             required.append(("Bundled png2dds.exe", str(app_dir() / "png2dds.exe")))
             required.append(("Bundled ImageMagick magick.exe", str(app_dir() / "ImageMagick" / "magick.exe")))
             required.append(("png2dds.exe", self.png2dds_cmd.get()))
@@ -668,9 +731,13 @@ class TextureWorkshopApp:
     def log_support_paths(self) -> None:
         mode = self.mode.get()
         self.thread_log("Support files:")
-        if mode in {"ace_png", "ace_dds"}:
+        if mode in ACE_INPUT_MODES:
             self.thread_log(f"  ace2png    : {self.ace2png_cmd.get()}")
-        if mode in {"image_dds", "ace_dds"}:
+        if mode == "image_ace":
+            self.thread_log(f"  png2ace    : {self.png2ace_cmd.get()}")
+            self.thread_log(f"  ACE format : {self.ace_format.get()}")
+            self.thread_log(f"  ACE mipmaps: {self.ace_mipmaps.get()}")
+        if mode in DDS_OUTPUT_MODES:
             self.thread_log(f"  png2dds    : {self.png2dds_cmd.get()}")
             self.thread_log(f"  ImageMagick: {self.magick_cmd.get()}")
             self.thread_log(f"  DDS compression: {self.dds_compression.get()}")
@@ -747,6 +814,9 @@ class TextureWorkshopApp:
         if mode == "ace_dds":
             dds_out = output_path_for(file_path, source_root, output_root, ".dds")
             return self.run_ace_to_dds(file_path, dds_out)
+        if mode == "image_ace":
+            ace_out = output_path_for(file_path, source_root, output_root, ".ace")
+            return self.run_image_to_ace(file_path, ace_out)
         raise ValueError(f"Unknown mode: {mode}")
 
     def run_ace_to_png(self, ace: Path, png_out: Path) -> bool | None:
@@ -806,6 +876,34 @@ class TextureWorkshopApp:
             if cleanup_dir is not None:
                 cleanup_dir.cleanup()
 
+    def run_image_to_ace(self, image: Path, ace_out: Path) -> bool | None:
+        """Convert with png2ace into a temp file, then apply the overwrite policy.
+
+        png2ace exits 0 without writing anything when it deliberately skips an image
+        (DXT3/DXT5 requested for a source without alpha), so an existing ACE file is
+        only touched once a new one has actually been produced.
+        """
+        policy = self.overwrite_policy.get()
+        if ace_out.exists() and policy == "skip":
+            self.thread_log(f"SKIP existing output: {ace_out}")
+            return None
+        ace_out.parent.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(prefix="textureworkshop-", dir=ace_out.parent) as td:
+            temp_out = Path(td) / ace_out.name
+            rc = run_command(png2ace_command(self.png2ace_cmd.get(), image, temp_out, self.ace_format.get(), self.ace_mipmaps.get()), app_dir(), self.thread_log)
+            if rc != 0:
+                return False
+            if not temp_out.exists():
+                self.thread_log(f"SKIP: png2ace did not write an ACE file for {image.name}")
+                return None
+            should_run, note = ensure_overwrite_policy(ace_out, policy)
+            if note:
+                self.thread_log(note)
+            if not should_run:
+                return None
+            shutil.move(str(temp_out), str(ace_out))
+        return ace_out.exists()
+
     def load_config(self) -> configparser.ConfigParser:
         cfg = configparser.ConfigParser()
         if CONFIG_FILE.exists():
@@ -830,9 +928,12 @@ class TextureWorkshopApp:
             "overwrite_policy": self.overwrite_policy.get(),
             "dds_compression": self.dds_compression.get(),
             "dds_mipmaps": self.dds_mipmaps.get(),
+            "ace_format": self.ace_format.get(),
+            "ace_mipmaps": self.ace_mipmaps.get(),
             "theme": self.theme_name.get(),
             "ace2png_cmd": self.ace2png_cmd.get(),
             "png2dds_cmd": self.png2dds_cmd.get(),
+            "png2ace_cmd": self.png2ace_cmd.get(),
             "magick_cmd": self.magick_cmd.get(),
         }
         for key, value in values.items():

@@ -1,6 +1,6 @@
 # Texture Workshop
 
-Texture Workshop (formerly DDS Workshop) helps convert Microsoft Train Simulator / Open Rails textures. It converts ACE texture files to PNG files, and converts edited PNG files to DDS files.
+Texture Workshop (formerly DDS Workshop) helps convert Microsoft Train Simulator / Open Rails textures. It converts ACE texture files to PNG files, and converts edited PNG/TGA/BMP files to DDS or ACE files.
 
 Most users should download the Texture Workshop release ZIP, extract the whole folder, and run `TextureWorkshop.exe`. You do not need Python and you do not need to install ImageMagick when the release includes the `ImageMagick` folder.
 
@@ -11,21 +11,29 @@ Most users should download the Texture Workshop release ZIP, extract the whole f
 3. Choose a source file or folder.
 4. Choose a conversion mode:
    - ACE to editable PNG
-   - PNG/TGA/BMP to DDS
    - ACE directly to DDS
+   - PNG/TGA/BMP to DDS
+   - PNG/TGA/BMP to ACE
 5. For DDS output, choose the DDS compression mode:
    - Auto: DXT1 for opaque images, DXT5 for images with transparency
    - Force DXT1
    - Force DXT5
 6. For DDS output, choose whether to generate DDS mipmaps.
-7. Choose whether to use the source folder or a separate output folder.
-8. Click `Run Conversion`.
+7. For ACE output, choose the ACE format:
+   - Structured (safest): uncompressed, best compatibility with MSTS and Open Rails
+   - DXT1: compressed, for textures without transparency
+   - DXT3 or DXT5: compressed, for textures with transparency. Images without an alpha channel are skipped.
+   - Auto DXT: DXT1 for opaque images, DXT5 for images with transparency
+8. For ACE output, choose whether to generate ACE mipmaps. Mipmaps need square, power-of-two images such as 512x512 or 1024x1024.
+9. Choose whether to use the source folder or a separate output folder.
+10. Click `Run Conversion`.
 
 Keep these files and folders together:
 
    TextureWorkshop.exe
    ace2png.exe
    png2dds.exe
+   png2ace.exe
    ImageMagick\magick.exe
 
 ## What you need
@@ -46,6 +54,7 @@ The preferred release layout includes the official portable ImageMagick build in
    TextureWorkshop.exe
    ace2png.exe
    png2dds.exe
+   png2ace.exe
    ImageMagick\magick.exe
 
 Texture Workshop looks for ImageMagick in this order:
@@ -83,7 +92,7 @@ If Windows says magick is not recognized, reinstall ImageMagick and make sure th
 
 ## Basic use
 
-Put ace2png.exe and png2dds.exe somewhere easy to find, such as the same folder as your texture files or a tools folder like C:\PROGRAMS.
+Put ace2png.exe, png2dds.exe and png2ace.exe somewhere easy to find, such as the same folder as your texture files or a tools folder like C:\PROGRAMS.
 
 ### Convert ACE files to PNG
 
@@ -118,11 +127,35 @@ Generate DDS mipmaps when needed:
 
    png2dds.exe texture.png --destination texture.dds --mipmaps generate
 
+### Convert PNG/TGA/BMP files to ACE
+
+Convert one image beside the source file:
+
+   png2ace.exe texture.png
+
+Convert one image to a specific ACE file:
+
+   png2ace.exe texture.png texture.ace
+
+Convert all PNG/TGA files in a folder (not subfolders) into another folder:
+
+   png2ace.exe png_folder ace_folder
+
+Choose a compressed ACE format, or generate mipmaps:
+
+   png2ace.exe texture.png texture.ace --format dxt1
+   png2ace.exe texture.png texture.ace --format auto-dxt
+   png2ace.exe texture.png texture.ace --mipmaps
+
+png2ace.exe does not need ImageMagick.
+
 ## Notes
 
-- Existing PNG or DDS files are not simply overwritten. The old file is kept as a backup with .bak added to the name.
+- In Texture Workshop, existing PNG, DDS or ACE files are not simply overwritten by default. The old file is kept as a backup with .bak added to the name. When png2ace.exe is used on its own from the command line, it replaces an existing ACE file without a backup.
 - png2dds.exe defaults to automatic DXT selection: DXT1 for images without transparency and DXT5 for images with transparency. Use `--compression dxt1` or `--compression dxt5` to force a specific DDS format.
 - png2dds.exe defaults to no mipmaps. Use `--mipmaps generate` to create DDS mipmap levels.
+- png2ace.exe writes a transparency (alpha) channel only when the image really uses transparency. Tiny amounts of near-opaque alpha are treated as opaque, because some older MSTS ACE readers show stripes when an unneeded alpha channel is present.
+- If an ACE conversion is skipped (for example DXT5 chosen for an image with no alpha channel), Texture Workshop leaves any existing ACE file untouched.
 - The old png2dds.ps1 file is no longer needed. PNG to DDS conversion is now handled by png2dds.exe / png2dds.py.
 
 ## For developers
@@ -135,12 +168,12 @@ png2dds.py also needs ImageMagick installed.
 
 To build TextureWorkshop.exe and create the release ZIP:
 
-   python toolsuild_texture_workshop_release.py
+   python tools\build_texture_workshop_release.py
 
 The release folder and ZIP are created in the dist folder as TextureWorkshop-<version>.
 
 To regenerate the application icon:
 
-   python toolsuild_texture_workshop_assets.py
+   python tools\build_texture_workshop_assets.py
 
 Pete Willard, Nov. 2025
