@@ -1,0 +1,12 @@
+ImageMagick
+===========
+
+DDS Workshop may be distributed with the official portable ImageMagick Windows build so users do not need to install ImageMagick system-wide.
+
+Project: https://imagemagick.org/
+License: ImageMagick License
+License URL: https://imagemagick.org/license/
+
+Redistribution requirements noted by ImageMagick include proper attribution and inclusion of the ImageMagick license with distributions that include ImageMagick software.
+
+When preparing a release that bundles the portable ImageMagick package, include the original ImageMagick license file from that package in this THIRD_PARTY_LICENSES folder, or replace this notice with the full current license text from https://imagemagick.org/license/.

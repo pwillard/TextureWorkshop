@@ -1,0 +1,19 @@
+# Python caches
+__pycache__/
+*.py[cod]
+
+# PyInstaller/build outputs
+build/
+dist/
+*.spec
+
+# Local release/vendor payloads (downloaded/recreated for releases)
+ImageMagick/
+third_party/downloads/*.7z
+third_party/extract/
+
+# Local editor/OS files
+.DS_Store
+Thumbs.db
+
+state.txt

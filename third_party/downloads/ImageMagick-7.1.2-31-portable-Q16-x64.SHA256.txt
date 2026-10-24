@@ -1,0 +1,4 @@
+33d8b47bb404a6b30c672195795e64a8ce0c807f9bba084e359ff086d6c5d50d  ImageMagick-7.1.2-31-portable-Q16-x64.7z
+
+Source: https://github.com/ImageMagick/ImageMagick/releases/download/7.1.2-31/ImageMagick-7.1.2-31-portable-Q16-x64.7z
+Downloaded for DDS Workshop bundled portable ImageMagick release support.
