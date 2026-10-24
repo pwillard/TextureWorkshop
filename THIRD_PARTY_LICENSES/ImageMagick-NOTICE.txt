@@ -1,7 +1,7 @@
 ImageMagick
 ===========
 
-DDS Workshop may be distributed with the official portable ImageMagick Windows build so users do not need to install ImageMagick system-wide.
+Texture Workshop may be distributed with the official portable ImageMagick Windows build so users do not need to install ImageMagick system-wide.
 
 Project: https://imagemagick.org/
 License: ImageMagick License

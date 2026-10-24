@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""DDS Workshop - ORZIP-style GUI frontend for ACE/DDS conversion tools."""
+"""Texture Workshop (formerly DDS Workshop) - ORZIP-style GUI frontend for ACE/PNG/DDS texture conversion tools."""
 from __future__ import annotations
 
 import configparser
@@ -18,11 +18,13 @@ import tkinter as tk
 import tkinter.font as tkfont
 from tkinter.scrolledtext import ScrolledText
 
-APP_NAME = "DDS Workshop"
-APP_VERSION = "0.1.12"
-APP_SUBTITLE = "ACE / DDS TEXTURE CONVERSION"
-CONFIG_DIR = Path(os.environ.get("APPDATA", Path.home() / "AppData" / "Roaming")) / "DDSWorkshop"
+APP_NAME = "Texture Workshop"
+APP_VERSION = "0.2.0"
+APP_SUBTITLE = "ACE / PNG / DDS TEXTURE CONVERSION"
+CONFIG_DIR = Path(os.environ.get("APPDATA", Path.home() / "AppData" / "Roaming")) / "TextureWorkshop"
 CONFIG_FILE = CONFIG_DIR / "settings.ini"
+# Settings from the previous name (DDS Workshop); read once if no Texture Workshop settings exist yet.
+LEGACY_CONFIG_FILE = CONFIG_DIR.parent / "DDSWorkshop" / "settings.ini"
 IMAGE_EXTS = {".png", ".tga", ".bmp"}
 ACE_EXTS = {".ace"}
 SOURCE_COLUMNS = (("name", "File", 260), ("folder", "Folder", 360), ("type", "Type", 70), ("size", "Size", 90))
@@ -102,18 +104,18 @@ def bundled_dir() -> Path:
 
 def app_icon_path() -> Path:
     for base in (bundled_dir(), app_dir()):
-        candidate = base / "assets" / "DDSWorkshop_RSS.ico"
+        candidate = base / "assets" / "TextureWorkshop_RSS.ico"
         if candidate.exists():
             return candidate
-    return app_dir() / "assets" / "DDSWorkshop_RSS.ico"
+    return app_dir() / "assets" / "TextureWorkshop_RSS.ico"
 
 
 def banner_image_path() -> Path:
     for base in (bundled_dir(), app_dir()):
-        candidate = base / "assets" / "DDSWorkshop_RSS.png"
+        candidate = base / "assets" / "TextureWorkshop_RSS.png"
         if candidate.exists():
             return candidate
-    return app_dir() / "assets" / "DDSWorkshop_RSS.png"
+    return app_dir() / "assets" / "TextureWorkshop_RSS.png"
 
 
 def resolve_tool(saved: str, names: tuple[str, ...]) -> str:
@@ -276,7 +278,7 @@ def png2dds_command(png2dds: str, source: Path, destination: Path, compression: 
     return [png2dds, str(source), "--destination", str(destination), "--compression", compression, "--mipmaps", mipmaps]
 
 
-class DDSWorkshopApp:
+class TextureWorkshopApp:
     def __init__(self, root: Tk) -> None:
         self.root = root
         root.title(f"{APP_NAME} {APP_VERSION}")
@@ -573,7 +575,7 @@ class DDSWorkshopApp:
 
     def open_settings(self) -> None:
         win = Toplevel(self.root)
-        win.title("DDS Workshop Settings")
+        win.title("Texture Workshop Settings")
         win.configure(bg=self.palette().app_bg)
         win.transient(self.root)
         win.grab_set()
@@ -684,7 +686,7 @@ class DDSWorkshopApp:
             return
         missing = self.missing_support_files()
         if missing:
-            message = "DDS Workshop cannot run because required support files are missing:\n\n" + "\n".join(missing) + "\n\nUse Settings to point DDS Workshop at the missing executable, or restore the files beside DDSWorkshop.exe."
+            message = "Texture Workshop cannot run because required support files are missing:\n\n" + "\n".join(missing) + "\n\nUse Settings to point Texture Workshop at the missing executable, or restore the files beside TextureWorkshop.exe."
             self.append_log(message)
             messagebox.showerror(APP_NAME, message, parent=self.root)
             return
@@ -708,7 +710,7 @@ class DDSWorkshopApp:
             if output_root:
                 output_root.mkdir(parents=True, exist_ok=True)
             files = collect_sources(source, mode, self.recursive.get())
-            self.thread_log(f"DDS Workshop {APP_VERSION}")
+            self.thread_log(f"Texture Workshop {APP_VERSION}")
             self.log_support_paths()
             self.thread_log(f"Found {len(files)} file(s).")
             for index, file_path in enumerate(files, start=1):
@@ -769,7 +771,7 @@ class DDSWorkshopApp:
             source_for_png2dds = image
             cleanup_dir = None
         else:
-            cleanup_dir = tempfile.TemporaryDirectory(prefix="ddsworkshop-")
+            cleanup_dir = tempfile.TemporaryDirectory(prefix="textureworkshop-")
             source_for_png2dds = Path(cleanup_dir.name) / (image.stem + ".png")
             rc = run_command([self.magick_cmd.get(), str(image), str(source_for_png2dds)], app_dir(), self.thread_log, env=tool_environment(self.magick_cmd.get()))
             if rc != 0 or not source_for_png2dds.exists():
@@ -793,7 +795,7 @@ class DDSWorkshopApp:
             png_out = dds_out.with_suffix(".png")
             cleanup_dir = None
         else:
-            cleanup_dir = tempfile.TemporaryDirectory(prefix="ddsworkshop-")
+            cleanup_dir = tempfile.TemporaryDirectory(prefix="textureworkshop-")
             png_out = Path(cleanup_dir.name) / (ace.stem + ".png")
         try:
             if not self.run_ace_to_png(ace, png_out):
@@ -808,6 +810,8 @@ class DDSWorkshopApp:
         cfg = configparser.ConfigParser()
         if CONFIG_FILE.exists():
             cfg.read(CONFIG_FILE)
+        elif LEGACY_CONFIG_FILE.exists():
+            cfg.read(LEGACY_CONFIG_FILE)
         if not cfg.has_section("settings"):
             cfg.add_section("settings")
         return cfg
@@ -840,7 +844,7 @@ class DDSWorkshopApp:
 
 def main() -> None:
     root = Tk()
-    DDSWorkshopApp(root)
+    TextureWorkshopApp(root)
     root.mainloop()
 
 

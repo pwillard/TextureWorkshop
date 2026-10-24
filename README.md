@@ -1,13 +1,13 @@
-# ACE to PNG to DDS Conversion Tools
+# Texture Workshop
 
-These tools help convert Microsoft Train Simulator / Open Rails ACE texture files to PNG files, and then convert edited PNG files to DDS files.
+Texture Workshop (formerly DDS Workshop) helps convert Microsoft Train Simulator / Open Rails textures. It converts ACE texture files to PNG files, and converts edited PNG files to DDS files.
 
-Most users should download the DDS Workshop release ZIP, extract the whole folder, and run `DDSWorkshop.exe`. You do not need Python and you do not need to install ImageMagick when the release includes the `ImageMagick` folder.
+Most users should download the Texture Workshop release ZIP, extract the whole folder, and run `TextureWorkshop.exe`. You do not need Python and you do not need to install ImageMagick when the release includes the `ImageMagick` folder.
 
-## DDS Workshop quick start
+## Texture Workshop quick start
 
-1. Extract the release ZIP to a normal folder, such as `C:\Tools\DDSWorkshop`.
-2. Run `DDSWorkshop.exe`.
+1. Extract the release ZIP to a normal folder, such as `C:\Tools\TextureWorkshop`.
+2. Run `TextureWorkshop.exe`.
 3. Choose a source file or folder.
 4. Choose a conversion mode:
    - ACE to editable PNG
@@ -23,7 +23,7 @@ Most users should download the DDS Workshop release ZIP, extract the whole folde
 
 Keep these files and folders together:
 
-   DDSWorkshop.exe
+   TextureWorkshop.exe
    ace2png.exe
    png2dds.exe
    ImageMagick\magick.exe
@@ -43,16 +43,16 @@ You do not need Python.
 
 The preferred release layout includes the official portable ImageMagick build in an `ImageMagick` folder beside the EXE files:
 
-   DDSWorkshop.exe
+   TextureWorkshop.exe
    ace2png.exe
    png2dds.exe
    ImageMagick\magick.exe
 
-DDS Workshop looks for ImageMagick in this order:
+Texture Workshop looks for ImageMagick in this order:
 
 1. The configured ImageMagick path in Settings
-2. `ImageMagick\magick.exe` beside DDS Workshop
-3. `magick.exe` beside DDS Workshop
+2. `ImageMagick\magick.exe` beside Texture Workshop
+3. `magick.exe` beside Texture Workshop
 4. `magick.exe` on the system PATH
 
 If the release you downloaded already includes the `ImageMagick` folder, you do not need to install ImageMagick separately.
@@ -133,10 +133,14 @@ To run the source scripts directly, install Python 3 and Pillow:
 
 png2dds.py also needs ImageMagick installed.
 
-To build both EXE files and create Ace2DDS.zip:
+To build TextureWorkshop.exe and create the release ZIP:
 
-   python build_release.py
+   python toolsuild_texture_workshop_release.py
 
-The release ZIP is created from the DIST folder.
+The release folder and ZIP are created in the dist folder as TextureWorkshop-<version>.
+
+To regenerate the application icon:
+
+   python toolsuild_texture_workshop_assets.py
 
 Pete Willard, Nov. 2025

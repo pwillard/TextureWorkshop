@@ -4,10 +4,10 @@ import tkinter as tk
 import unittest
 from pathlib import Path
 
-import dds_workshop as dw
+import texture_workshop as dw
 
 
-class DDSWorkshopHelperTests(unittest.TestCase):
+class TextureWorkshopHelperTests(unittest.TestCase):
     def test_collect_sources_filters_by_mode(self):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
@@ -66,7 +66,7 @@ class DDSWorkshopHelperTests(unittest.TestCase):
         root = tk.Tk()
         root.withdraw()
         try:
-            app = dw.DDSWorkshopApp(root)
+            app = dw.TextureWorkshopApp(root)
             app.mode.set("ace_dds")
             app.ace2png_cmd.set(str(Path("missing_ace2png.exe")))
             app.png2dds_cmd.set(str(Path("missing_png2dds.exe")))
@@ -108,7 +108,7 @@ class DDSWorkshopHelperTests(unittest.TestCase):
             root = tk.Tk()
             root.withdraw()
             try:
-                app = dw.DDSWorkshopApp(root)
+                app = dw.TextureWorkshopApp(root)
                 app.source_path.set(str(root_path))
                 app.mode.set("ace_png")
                 app.recursive.set(False)
@@ -136,7 +136,7 @@ class DDSWorkshopHelperTests(unittest.TestCase):
         root = tk.Tk()
         root.geometry("820x420")
         try:
-            app = dw.DDSWorkshopApp(root)
+            app = dw.TextureWorkshopApp(root)
             root.geometry("820x420")
             root.update()
             self.assertTrue(hasattr(app, "content_canvas"))
@@ -154,12 +154,12 @@ class DDSWorkshopHelperTests(unittest.TestCase):
         original_config_dir = dw.CONFIG_DIR
         original_config_file = dw.CONFIG_FILE
         with tempfile.TemporaryDirectory() as td:
-            dw.CONFIG_DIR = Path(td) / "DDSWorkshop"
+            dw.CONFIG_DIR = Path(td) / "TextureWorkshop"
             dw.CONFIG_FILE = dw.CONFIG_DIR / "settings.ini"
             try:
                 root = tk.Tk()
                 root.withdraw()
-                app = dw.DDSWorkshopApp(root)
+                app = dw.TextureWorkshopApp(root)
                 app.theme_name.set("Dark")
                 app.dds_compression.set("dxt5")
                 app.dds_mipmaps.set("generate")
@@ -179,6 +179,35 @@ class DDSWorkshopHelperTests(unittest.TestCase):
             finally:
                 dw.CONFIG_DIR = original_config_dir
                 dw.CONFIG_FILE = original_config_file
+
+    def test_legacy_dds_workshop_settings_are_imported(self):
+        originals = (dw.CONFIG_DIR, dw.CONFIG_FILE, dw.LEGACY_CONFIG_FILE)
+        with tempfile.TemporaryDirectory() as td:
+            dw.CONFIG_DIR = Path(td) / "TextureWorkshop"
+            dw.CONFIG_FILE = dw.CONFIG_DIR / "settings.ini"
+            dw.LEGACY_CONFIG_FILE = Path(td) / "DDSWorkshop" / "settings.ini"
+            dw.LEGACY_CONFIG_FILE.parent.mkdir(parents=True)
+            dw.LEGACY_CONFIG_FILE.write_text("[settings]\ntheme = Dark\ndds_compression = dxt1\n", encoding="utf-8")
+            try:
+                root = tk.Tk()
+                root.withdraw()
+                try:
+                    app = dw.TextureWorkshopApp(root)
+                    self.assertEqual(app.theme_name.get(), "Dark")
+                    self.assertEqual(app.dds_compression.get(), "dxt1")
+                finally:
+                    root.destroy()
+                # New settings file takes priority once it exists.
+                dw.CONFIG_DIR.mkdir(parents=True)
+                dw.CONFIG_FILE.write_text("[settings]\ntheme = Light\n", encoding="utf-8")
+                root = tk.Tk()
+                root.withdraw()
+                try:
+                    self.assertEqual(dw.TextureWorkshopApp(root).theme_name.get(), "Light")
+                finally:
+                    root.destroy()
+            finally:
+                dw.CONFIG_DIR, dw.CONFIG_FILE, dw.LEGACY_CONFIG_FILE = originals
 
 
 if __name__ == "__main__":

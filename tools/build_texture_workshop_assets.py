@@ -5,8 +5,8 @@ from PIL import Image, ImageDraw, ImageFont
 
 ROOT = Path(__file__).resolve().parents[1]
 ASSETS = ROOT / "assets"
-PNG = ASSETS / "DDSWorkshop_RSS.png"
-ICO = ASSETS / "DDSWorkshop_RSS.ico"
+PNG = ASSETS / "TextureWorkshop_RSS.png"
+ICO = ASSETS / "TextureWorkshop_RSS.ico"
 SIZES = [16, 24, 32, 48, 64, 128, 256]
 CANVAS = 256
 
@@ -67,7 +67,7 @@ def make_icon() -> Image.Image:
         draw.rounded_rectangle((cx - w // 2, y - 5, cx + w // 2, y + 5), radius=3, fill=(213, 132, 48, 255))
         draw.line([(cx - w // 2 + 5, y + 5), (cx + w // 2 - 5, y + 5)], fill=(93, 48, 19, 140), width=1)
 
-    # Texture tile: checker/photo source being turned into a DDS asset.
+    # Texture tile: checker/photo source being converted between ACE/PNG/DDS.
     draw.rounded_rectangle((48, 40, 196, 136), radius=12, fill=(244, 239, 224, 255), outline=(23, 35, 47, 230), width=4)
     colors = [(123, 75, 47, 255), (219, 190, 124, 255), (86, 123, 91, 255), (206, 207, 188, 255)]
     for row in range(2):
@@ -76,9 +76,9 @@ def make_icon() -> Image.Image:
             y0 = 58 + row * 28
             draw.rectangle((x0, y0, x0 + 28, y0 + 28), fill=colors[(row + col) % len(colors)])
     draw.rounded_rectangle((137, 53, 183, 94), radius=5, fill=(40, 54, 67, 230))
-    text_center(draw, (137, 51, 183, 94), "DDS", font(17, True), fill=(255, 230, 154, 255))
+    text_center(draw, (137, 51, 183, 94), "ACE", font(17, True), fill=(255, 230, 154, 255))
 
-    text_center(draw, (36, 132, 220, 176), "DDS", font(44, True), fill=(255, 241, 203, 255), stroke_width=3, stroke_fill=(34, 22, 17, 220))
+    text_center(draw, (24, 132, 232, 176), "Texture", font(40, True), fill=(255, 241, 203, 255), stroke_width=3, stroke_fill=(34, 22, 17, 220))
     text_center(draw, (24, 172, 232, 216), "Workshop", font(31, True), fill=(255, 185, 78, 255), stroke_width=3, stroke_fill=(34, 22, 17, 230))
 
     return img

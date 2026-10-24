@@ -13,7 +13,7 @@ APP_VERSION = None
 RELEASE_NAME = None
 DIST = ROOT / "dist"
 BUILD = ROOT / "build"
-APP_EXE_NAME = "DDSWorkshop.exe"
+APP_EXE_NAME = "TextureWorkshop.exe"
 IMAGEMAGICK_VERSION = "7.1.2-31"
 IMAGEMAGICK_ARCHIVE = f"ImageMagick-{IMAGEMAGICK_VERSION}-portable-Q16-x64.7z"
 IMAGEMAGICK_URL = f"https://github.com/ImageMagick/ImageMagick/releases/download/{IMAGEMAGICK_VERSION}/{IMAGEMAGICK_ARCHIVE}"
@@ -24,12 +24,12 @@ IMAGEMAGICK_DIR = ROOT / "ImageMagick"
 
 def read_app_version() -> str:
     namespace: dict[str, object] = {}
-    text = (ROOT / "dds_workshop.py").read_text(encoding="utf-8")
+    text = (ROOT / "texture_workshop.py").read_text(encoding="utf-8")
     for line in text.splitlines():
         if line.startswith("APP_VERSION"):
             exec(line, namespace)
             return str(namespace["APP_VERSION"])
-    raise RuntimeError("APP_VERSION not found in dds_workshop.py")
+    raise RuntimeError("APP_VERSION not found in texture_workshop.py")
 
 
 def run(cmd: list[str]) -> None:
@@ -115,13 +115,13 @@ def zip_dir(src_dir: Path, zip_path: Path) -> None:
 
 def main() -> int:
     version = read_app_version()
-    release_name = f"DDSWorkshop-{version}"
+    release_name = f"TextureWorkshop-{version}"
     release_dir = DIST / release_name
     zip_path = DIST / f"{release_name}.zip"
 
     ensure_imagemagick()
-    run([sys.executable, "-m", "py_compile", "dds_workshop.py", "test_dds_workshop.py", "tools/build_dds_workshop_assets.py"])
-    run([sys.executable, "-m", "unittest", "-v", "test_dds_workshop.py"])
+    run([sys.executable, "-m", "py_compile", "texture_workshop.py", "test_texture_workshop.py", "tools/build_texture_workshop_assets.py"])
+    run([sys.executable, "-m", "unittest", "-v", "test_texture_workshop.py"])
 
     run([
         sys.executable,
@@ -132,12 +132,12 @@ def main() -> int:
         "--onefile",
         "--windowed",
         "--name",
-        "DDSWorkshop",
+        "TextureWorkshop",
         "--icon",
-        str(ROOT / "assets" / "DDSWorkshop_RSS.ico"),
+        str(ROOT / "assets" / "TextureWorkshop_RSS.ico"),
         "--add-data",
         f"{ROOT / 'assets'};assets",
-        str(ROOT / "dds_workshop.py"),
+        str(ROOT / "texture_workshop.py"),
     ])
 
     if release_dir.exists():
@@ -155,10 +155,10 @@ def main() -> int:
     copytree_clean(ROOT / "THIRD_PARTY_LICENSES", release_dir / "THIRD_PARTY_LICENSES")
 
     manifest_lines = [
-        f"DDS Workshop {version}",
+        f"Texture Workshop {version}",
         "",
         "Included files for normal users:",
-        "- DDSWorkshop.exe: graphical front end",
+        "- TextureWorkshop.exe: graphical front end",
         "- ace2png.exe: ACE to PNG backend",
         "- png2dds.exe: PNG to DDS backend",
         "- ImageMagick/: official portable ImageMagick runtime",
