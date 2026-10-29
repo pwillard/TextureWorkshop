@@ -104,6 +104,35 @@ def ensure_imagemagick() -> None:
     copy_required(IMAGEMAGICK_DIR / "NOTICE.txt", ROOT / "THIRD_PARTY_LICENSES" / "ImageMagick-UPSTREAM-NOTICE.txt")
 
 
+def build_png2dds() -> Path:
+    """Build the DDS backend so releases do not use the legacy two-level binary."""
+    distpath = BUILD / "png2dds-dist"
+    workpath = BUILD / "png2dds-work"
+    specpath = BUILD / "png2dds-spec"
+    run([
+        sys.executable,
+        "-m",
+        "PyInstaller",
+        "--noconfirm",
+        "--clean",
+        "--onefile",
+        "--console",
+        "--name",
+        "png2dds",
+        "--distpath",
+        str(distpath),
+        "--workpath",
+        str(workpath),
+        "--specpath",
+        str(specpath),
+        str(ROOT / "png2dds.py"),
+    ])
+    result = distpath / "png2dds.exe"
+    if not result.exists():
+        raise FileNotFoundError(result)
+    return result
+
+
 def zip_dir(src_dir: Path, zip_path: Path) -> None:
     if zip_path.exists():
         zip_path.unlink()
@@ -120,7 +149,8 @@ def main() -> int:
     zip_path = DIST / f"{release_name}.zip"
 
     ensure_imagemagick()
-    run([sys.executable, "-m", "py_compile", "texture_workshop.py", "test_texture_workshop.py", "tools/build_texture_workshop_assets.py"])
+    png2dds_exe = build_png2dds()
+    run([sys.executable, "-m", "py_compile", "texture_workshop.py", "png2dds.py", "test_texture_workshop.py", "tools/build_texture_workshop_assets.py"])
     run([sys.executable, "-m", "unittest", "-v", "test_texture_workshop.py"])
 
     run([
@@ -146,7 +176,7 @@ def main() -> int:
 
     copy_required(DIST / APP_EXE_NAME, release_dir / APP_EXE_NAME)
     copy_required(ROOT / "ace2png.exe", release_dir / "ace2png.exe")
-    copy_required(ROOT / "png2dds.exe", release_dir / "png2dds.exe")
+    copy_required(png2dds_exe, release_dir / "png2dds.exe")
     copy_required(ROOT / "png2ace.exe", release_dir / "png2ace.exe")
     copy_required(ROOT / "README.md", release_dir / "README.md")
     copy_required(ROOT / "SHA256SUMS.txt", release_dir / "SHA256SUMS-backend.txt")

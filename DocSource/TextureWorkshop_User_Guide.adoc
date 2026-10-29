@@ -2,7 +2,7 @@
 Pete Willard
 :revnumber: 2.0
 :revdate: October 2026
-:appversion: 0.4.1
+:appversion: 0.4.2
 :doctype: book
 :icons: font
 :toc: left
@@ -169,7 +169,7 @@ DDS compression::
 
 DDS mipmaps::
 * *No mipmaps*: the default.
-* *Generate mipmaps*: adds smaller copies of the texture inside the DDS file, which can make distant textures look smoother.
+* *Generate mipmaps*: adds up to 10 smaller copies of the texture inside the DDS file, which can make distant textures look smoother. A 1024 x 1024 texture receives the complete chain down to 1 x 1.
 
 === PNG/TGA/BMP to ACE
 

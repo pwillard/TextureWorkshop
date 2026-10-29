@@ -19,7 +19,7 @@ import tkinter.font as tkfont
 from tkinter.scrolledtext import ScrolledText
 
 APP_NAME = "Texture Workshop"
-APP_VERSION = "0.4.1"
+APP_VERSION = "0.4.2"
 APP_SUBTITLE = "ACE / PNG / DDS TEXTURE CONVERSION"
 CONFIG_DIR = Path(os.environ.get("APPDATA", Path.home() / "AppData" / "Roaming")) / "TextureWorkshop"
 CONFIG_FILE = CONFIG_DIR / "settings.ini"

@@ -30,6 +30,12 @@ def find_asciidoctor_pdf() -> list[str]:
         found = shutil.which(name)
         if found:
             return [found]
+    for candidate in (
+        Path(os.environ.get("RUBY_HOME", "")) / "bin" / "asciidoctor-pdf.bat",
+        Path("C:/tools/ruby34/bin/asciidoctor-pdf.bat"),
+    ):
+        if candidate.is_file():
+            return [str(candidate)]
     ruby = shutil.which("ruby")
     if ruby:
         return [ruby, "-S", "asciidoctor-pdf"]

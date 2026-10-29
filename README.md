@@ -161,6 +161,7 @@ png2ace.exe does not need ImageMagick.
 - In Texture Workshop, existing PNG, DDS or ACE files are never overwritten without your choice. With Backup, the old file is kept with a date stamp and .bak added to the name. When png2ace.exe is used on its own from the command line, it replaces an existing ACE file without a backup.
 - png2dds.exe defaults to automatic DXT selection: DXT1 for images without transparency and DXT5 for images with transparency. Use `--compression dxt1` or `--compression dxt5` to force a specific DDS format.
 - png2dds.exe defaults to no mipmaps. Use `--mipmaps generate` to create DDS mipmap levels.
+- Generated DDS files contain up to 10 mip levels below the base image (the full available chain for images up to 1024 x 1024). The DDS header counts the base image too, so a 1024 x 1024 texture reports 11 levels.
 - png2ace.exe writes a transparency (alpha) channel only when the image really uses transparency. Tiny amounts of near-opaque alpha are treated as opaque, because some older MSTS ACE readers show stripes when an unneeded alpha channel is present.
 - If an ACE conversion is skipped (for example DXT5 chosen for an image with no alpha channel), Texture Workshop leaves any existing ACE file untouched.
 - The old png2dds.ps1 file is no longer needed. PNG to DDS conversion is now handled by png2dds.exe / png2dds.py.

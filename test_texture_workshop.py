@@ -7,6 +7,7 @@ import unittest
 from pathlib import Path
 
 import texture_workshop as dw
+import png2dds
 
 
 def write_png(path: Path, width: int, height: int, rgba: bool) -> None:
@@ -23,6 +24,12 @@ def write_png(path: Path, width: int, height: int, rgba: bool) -> None:
 
 
 class TextureWorkshopHelperTests(unittest.TestCase):
+    def test_png2dds_mipmap_level_cap(self):
+        self.assertEqual(png2dds.mipmap_levels(1024, 1024, True), 10)
+        self.assertEqual(png2dds.mipmap_levels(2048, 2048, True), 10)
+        self.assertEqual(png2dds.mipmap_levels(512, 512, True), 9)
+        self.assertEqual(png2dds.mipmap_levels(1024, 1024, False), 0)
+
     def test_collect_sources_filters_by_mode(self):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
